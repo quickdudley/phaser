@@ -68,23 +68,32 @@ instance Functor (Automaton p i o) where
     go (Count p r) = Count p (go r)
 
 instance Link Phase Automaton Phase where
+  {-# INLINE (>>#) #-}
   s >># d = fromAutomaton (toAutomaton s >># d)
 
 instance Link Phase Phase Phase where
+  {-# INLINE (>>#) #-}
   s >># d = s >># toAutomaton d
 
 instance Link Automaton Automaton Automaton where
-  Yield o r >># d = case beforeStep d of
-    Left e -> e
-    Right d' -> r >># step d' o
-  Failed e >># _ = Failed e
-  _ >># Failed e = Failed e
-  Result _ >># d = starve d
-  (a :+++ b) >># d = prune1 ((a >># d) :+++ (b >># d))
-  s >># (a :+++ b) = prune1 ((s >># a) :+++ (s >># b))
-  Count p r >># d = prune1 (Count p (r >># d))
-  s >># Count p r = prune1 (Count p (s >># r))
-  Ready n e >># d = Ready (\t -> n t >># d) e
+  {-# INLINABLE (>>#) #-}
+  (>>#) = (!!!) where
+    Yield o r !!! d = case beforeStep d of
+      Left e -> e
+      Right d' -> r !!! step d' o
+    Failed e !!! _ = Failed e
+    _ !!! Failed e = Failed e
+    Result _ !!! d = starve d
+    (a :+++ b) !!! d = prune1 ((a !!! d) :+++ (b !!! d))
+    s !!! (a :+++ b) = prune1 ((s !!! a) :+++ (s !!! b))
+    Count p r !!! d = prune1 (Count p (r !!! d))
+    s !!! Count p r = prune1 (Count p (s !!! r))
+    Ready n e !!! d = Ready (\t -> n t !!! d) e
+
+{-# RULES
+"toAutomaton/fromAutomaton" forall a . toAutomaton (fromAutomaton a) = a
+"fromAutomaton/toAutomaton" forall a . fromAutomaton (toAutomaton a) = a
+ #-}
 
 infixl 1 <??>
 (<??>) :: ([String] -> [String]) -> Phase p i o a -> Phase p i o a
@@ -133,9 +142,11 @@ starve (Yield o r) = prune1 (Yield o (starve r))
 starve (Count p r) = prune1 (Count p (starve r))
 
 toAutomaton :: Phase p i o a -> Automaton p i o a
+{-# INLINE[2] toAutomaton #-}
 toAutomaton (Phase c) = c id Result
 
 fromAutomaton :: Automaton p i o a -> Phase p i o a
+{-# INLINE[2] fromAutomaton #-}
 fromAutomaton a = Phase (\e' c -> let
   continue (Result r) = c r
   continue (Ready n e) = Ready (fmap continue n) (e' . e)

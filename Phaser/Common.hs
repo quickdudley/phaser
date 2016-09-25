@@ -6,7 +6,10 @@ module Phaser.Common (
   string,
   iString,
   integerDecimal,
-  decimal
+  decimal,
+  directHex,
+  hex,
+  integer
  ) where
 
 import Data.Char
@@ -39,6 +42,19 @@ integerDecimal = go 0 where
     d <- fmap (fromIntegral . digitToInt) $ satisfy isDigit
     let acc' = acc * 10 + d
     acc' `seq` go acc' <|> return acc'
+
+directHex :: Num a => Phase p Char o a
+directHex = go 0 where
+  go acc = do
+    d <- fmap (fromIntegral . digitToInt) $ satisfy isHexDigit
+    let acc' = acc * 16 + d
+    acc' `seq` go acc' <|> return acc'
+
+hex :: Num a => Phase p Char o a
+hex = string "0x" >> directHex
+
+integer :: Num a => Phase p Char o a
+integer = integerDecimal <|> hex
 
 decimal :: Fractional a => Phase p Char o a
 decimal = do
