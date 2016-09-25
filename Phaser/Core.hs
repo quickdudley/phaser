@@ -3,10 +3,13 @@ module Phaser.Core (
   Automaton,
   Phase,
   Link(..),
+  Applicative(..),
+  Alternative(..),
   get,
   count,
   yield,
   (<??>),
+  (>#>),
   toAutomaton,
   fromAutomaton,
   beforeStep,
@@ -86,6 +89,16 @@ instance Link Automaton Automaton Automaton where
 infixl 1 <??>
 (<??>) :: ([String] -> [String]) -> Phase p i o a -> Phase p i o a
 f <??> Phase s = Phase (\e -> s (f . e))
+
+infixl 1 >#>
+(>#>) :: ((p0 -> p0) -> p -> p) -> Phase p0 i o a -> Phase p i o a
+f >#> p = fromAutomaton $ go $ toAutomaton p where
+  go (Result a) = Result a
+  go (Ready n e) = Ready (fmap go n) e
+  go (Failed e) = Failed e
+  go (a :+++ b) = go a :+++ go b
+  go (Yield t r) = Yield t (go r)
+  go (Count p r) = Count (f p) (go r)
 
 get :: Phase p i o i
 get = Phase (flip Ready)
