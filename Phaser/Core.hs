@@ -74,8 +74,9 @@ instance Link Phase Phase Phase where
   s >># d = s >># toAutomaton d
 
 instance Link Automaton Automaton Automaton where
-  Yield o r >># Ready n _ = r >># n o
-  Yield _ _ >># Result _ = Failed id
+  Yield o r >># d = case beforeStep d of
+    Left e -> e
+    Right d' -> r >># step d' o
   Failed e >># _ = Failed e
   _ >># Failed e = Failed e
   Result _ >># d = starve d
@@ -84,7 +85,6 @@ instance Link Automaton Automaton Automaton where
   Count p r >># d = prune1 (Count p (r >># d))
   s >># Count p r = prune1 (Count p (s >># r))
   Ready n e >># d = Ready (\t -> n t >># d) e
-  s >># Yield t r = prune1 (Yield t (s >># r))
 
 infixl 1 <??>
 (<??>) :: ([String] -> [String]) -> Phase p i o a -> Phase p i o a
@@ -147,11 +147,13 @@ fromAutomaton a = Phase (\e' c -> let
  )
 
 beforeStep :: Automaton p i o a ->
-  Either (Automaton p i o a) (Automaton p i o a)
+  Either (Automaton p v o a) (Automaton p i o a)
 beforeStep = go where
+  go :: Automaton p i o a ->
+    Either (Automaton p v o a) (Automaton p i o a)
   go (Result _) = Left (Failed id)
   go r@(Ready _ _) = Right r
-  go r@(Failed _) = Left r 
+  go (Failed f) = Left $ Failed f 
   go (a :+++ b) = case (go a, go b) of
     (Right a', Right b') -> Right $ prune1 $ a' :+++ b'
     (a'@(Right _), Left _) -> a'

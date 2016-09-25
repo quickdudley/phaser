@@ -1,5 +1,6 @@
 module Phaser.ByteString (
-
+  unpackBS,
+  unpackLBS
  ) where
 
 import qualified Data.ByteString as BS
