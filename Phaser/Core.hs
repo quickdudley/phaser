@@ -10,18 +10,25 @@ module Phaser.Core (
   yield,
   (<??>),
   (>#>),
+  starve,
   toAutomaton,
   fromAutomaton,
   beforeStep,
   step,
   extract,
   toReadS,
-  parse_
+  run,
+  parse_,
+  options
  ) where
 
 import Control.Applicative
 import Control.Monad
 
+-- | Represents a nondeterministic computation in progress.
+-- There are 4 type parameters: a counter type (may be used for tracking line
+-- and column numbers), an input type, an incremental output type, and a final
+-- output type.
 data Automaton p i o a =
   Result a |
   Ready (i -> Automaton p i o a) ([String] -> [String]) |
@@ -30,12 +37,18 @@ data Automaton p i o a =
   Yield o (Automaton p i o a) |
   Count (p -> p) (Automaton p i o a)
 
+-- | A type for building 'Automaton' values. 'Monad' and 'Applicative' instances
+-- are defined for this type rather than for 'Automaton' in order to avoid
+-- traversing the entire call stack for every input value.
 newtype Phase p i o a =
   Phase (([String] -> [String]) ->
     forall b . (a -> Automaton p i o b) -> Automaton p i o b)
 
 infixr 4 >>#
+-- | Class for types which consume and produce incremental input and output.
 class Link s d l | s d -> l where
+  -- | Take the incremental output of the first argument and use it as input
+  -- for the second argument. Discard the final output of the first argument.
   (>>#) :: s p b c x -> d p c t a -> l p b t a
 
 instance Functor (Phase p i o) where
@@ -95,10 +108,13 @@ instance Link Automaton Automaton Automaton where
 "fromAutomaton/toAutomaton" forall a . fromAutomaton (toAutomaton a) = a
  #-}
 
+-- | When the right argument fails: apply the left argument to the list of
+-- error messages.
 infixl 1 <??>
 (<??>) :: ([String] -> [String]) -> Phase p i o a -> Phase p i o a
 f <??> Phase s = Phase (\e -> s (f . e))
 
+-- | Change the counter type of a Phase object.
 infixl 1 >#>
 (>#>) :: ((p0 -> p0) -> p -> p) -> Phase p0 i o a -> Phase p i o a
 f >#> p = fromAutomaton $ go $ toAutomaton p where
@@ -109,12 +125,15 @@ f >#> p = fromAutomaton $ go $ toAutomaton p where
   go (Yield t r) = Yield t (go r)
   go (Count p r) = Count (f p) (go r)
 
+-- | Return one item of the input.
 get :: Phase p i o i
 get = Phase (flip Ready)
 
+-- | Modify the counter
 count :: (p -> p) -> Phase p i o ()
 count f = Phase (\_ c -> Count f (c ()))
 
+-- | Yield one item for the incremental output
 yield :: o -> Phase p i o ()
 yield o = Phase (\_ c -> Yield o (c ()))
 
@@ -134,6 +153,8 @@ prune1 (Yield _ f@(Failed _)) = f
 prune1 (Yield _ f@(Count _ (Failed _))) = f
 prune1 a = a
 
+-- | Remove an 'Automaton''s ability to consume further input
+starve :: Automaton p i o a -> Automaton p z o a
 starve (Result a) = Result a
 starve (Ready _ e) = Failed e
 starve (Failed e) = Failed e
@@ -141,10 +162,13 @@ starve (a :+++ b) = prune1 (starve a :+++ starve b)
 starve (Yield o r) = prune1 (Yield o (starve r))
 starve (Count p r) = prune1 (Count p (starve r))
 
+-- | Convert a 'Phase' to an 'Automaton'. Subject to fusion.
 toAutomaton :: Phase p i o a -> Automaton p i o a
 {-# INLINE[2] toAutomaton #-}
 toAutomaton (Phase c) = c id Result
 
+-- | Convert an 'Automaton' back to a 'Phase' (somewhat inefficient). Subject
+-- to fusion.
 fromAutomaton :: Automaton p i o a -> Phase p i o a
 {-# INLINE[2] fromAutomaton #-}
 fromAutomaton a = Phase (\e' c -> let
@@ -157,6 +181,10 @@ fromAutomaton a = Phase (\e' c -> let
   in continue a
  )
 
+-- | Optional pre-processing of an automaton before passing it more input.
+-- Produces 'Right' with all "final outputs" and errors stripped if the
+-- automaton can accept more input, and 'Left' with everything except errors
+-- stripped if it cannot accept more input.
 beforeStep :: Automaton p i o a ->
   Either (Automaton p v o a) (Automaton p i o a)
 beforeStep = go where
@@ -177,6 +205,7 @@ beforeStep = go where
     Left r' -> Left $ prune1 $ Count p r'
     Right r' -> Right $ prune1 $ Count p r'
 
+-- | Pass one input to an automaton
 step :: Automaton p i o a -> i -> Automaton p i o a
 step a' i = go a' where
   go (Result _) = Failed id
@@ -186,6 +215,8 @@ step a' i = go a' where
   go (Yield o r) = prune1 (Yield o (go r))
   go (Count p r) = prune1 (Count p (go r))
 
+-- | Take either counters with errors or a list of possible results from an
+-- automaton.
 extract :: p -> Automaton p i o a -> Either [(p,[String])] [a]
 extract p' a = case go p' a of
   Left e -> Left $ map (\(p,e') -> (p, e' [])) (e [])
@@ -204,6 +235,8 @@ extract p' a = case go p' a of
     p' = i p
     in p' `seq` go p' r
 
+-- | Create a 'ReadS' like value from an 'Automaton'. If the Automaton's input
+-- type is 'Char', the result will be 'ReadS'
 toReadS :: Automaton p i o a -> [i] -> [(a,[i])]
 toReadS a i = go a i [] where
   go (Result r) i' = ((r,i'):)
@@ -214,6 +247,7 @@ toReadS a i = go a i [] where
   go (Yield _ r) i' = go r i'
   go (Count _ r) i' = go r i'
 
+-- | Pass a list of input values to an 'Automaton'
 run :: Automaton p i o a -> [i] -> Automaton p i o a
 run = go where
   go a [] = a
@@ -221,6 +255,15 @@ run = go where
     Left a' -> a'
     Right a' -> go (step a' i) r
 
+-- | Use a 'Phase' value similarly to a parser.
 parse_ :: p -> Phase p i o a -> [i] -> Either [(p,[String])] [a]
 parse_ p a i = extract p $ run (toAutomaton a) i
+
+-- | Decompose an 'Automaton' into its component options.
+options :: Automaton p i o a -> [Automaton p i o a]
+options = ($ []) . go where
+  go (a :+++ b) = go a . go b
+  go (Yield o r) = (fmap . fmap) (Yield o) $ go r
+  go (Count p r) = (fmap . fmap) (Count p) $ go r
+  go a = (a :)
 
