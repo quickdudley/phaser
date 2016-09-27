@@ -19,7 +19,9 @@ module Phaser.Core (
   toReadS,
   run,
   parse_,
-  options
+  options,
+  readCount,
+  outputs
  ) where
 
 import Control.Applicative
@@ -81,15 +83,43 @@ instance Functor (Automaton p i o) where
     go (Count p r) = Count p (go r)
 
 instance Link Phase Automaton Phase where
-  {-# INLINE (>>#) #-}
+  {-# INLINE [2] (>>#) #-}
   s >># d = fromAutomaton (toAutomaton s >># d)
 
 instance Link Phase Phase Phase where
-  {-# INLINE (>>#) #-}
+  {-# INLINE [2] (>>#) #-}
   s >># d = s >># toAutomaton d
 
+{-# RULES
+">>#/>>#/1.1"
+  forall (a :: Phase p b c x) (b :: Phase p c t r) (c :: Phase p t g o) .
+    a >># (b >># c) = a >># (toAutomaton b >># toAutomaton c)
+">>#/>>#/1.2"
+  forall (a :: Phase p b c x) (b :: Phase p c t r) (c :: Automaton p t g o) .
+    a >># (b >># c) = a >># (toAutomaton b >># c)
+">>#/>>#/2.1"
+  forall
+    (a :: Phase p b c x)
+    (b :: Phase p c t y)
+    (c :: Phase p t o z) .
+     (a >># b) >># c = a >># (b >># c)
+">>#/>>#/2.2"
+  forall
+    (a :: Phase p b c x)
+    (b :: Phase p c t y)
+    (c :: Automaton p t o z) .
+     (a >># b) >># c = a >># (b >># c)
+">>#/>>#/2.3"
+  forall
+    (a :: Phase p b c x)
+    (b :: Automaton p c t y)
+    (c :: Automaton p t o z) .
+     (a >># b) >># c = a >># (b >># c)
+ #-}
+
+
 instance Link Automaton Automaton Automaton where
-  {-# INLINABLE (>>#) #-}
+  {-# INLINE [2] (>>#) #-}
   (>>#) = (!!!) where
     Yield o r !!! d = case beforeStep d of
       Left e -> e
@@ -102,11 +132,11 @@ instance Link Automaton Automaton Automaton where
     Count p r !!! d = prune1 (Count p (r !!! d))
     s !!! Count p r = prune1 (Count p (s !!! r))
     Ready n e !!! d = Ready (\t -> n t !!! d) e
-
+{- 
 {-# RULES
 "toAutomaton/fromAutomaton" forall a . toAutomaton (fromAutomaton a) = a
 "fromAutomaton/toAutomaton" forall a . fromAutomaton (toAutomaton a) = a
- #-}
+ #-} -}
 
 -- | When the right argument fails: apply the left argument to the list of
 -- error messages.
@@ -266,4 +296,30 @@ options = ($ []) . go where
   go (Yield o r) = (fmap . fmap) (Yield o) $ go r
   go (Count p r) = (fmap . fmap) (Count p) $ go r
   go a = (a :)
+
+
+-- | Separate unconditional counter modifiers from an automaton
+readCount :: Automaton p i o a -> (p -> p, Automaton p i o a)
+readCount = go where
+  go (Count p0 r) = let
+    (p1, r') = go r
+    p' c = let
+      c' = p0 c
+      in c' `seq` p1 c'
+    in (p', r')
+  go (Yield o r) = let
+    (p, r') = go r
+    in (p, prune1 $ Yield o r')
+  go a = (id, a)
+
+-- | Separate the values unconditionally yielded by an automaton
+outputs :: Automaton p i o a -> ([o], Automaton p i o a)
+outputs = go where
+  go (Yield o r) = let
+    (o', r') = go r
+    in (o:o', r')
+  go (Count p r) = let
+    (o, r') = go r
+    in (o, prune1 $ Count p r')
+  go a = ([], a)
 
