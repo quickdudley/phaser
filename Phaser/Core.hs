@@ -3,8 +3,6 @@ module Phaser.Core (
   Automaton,
   Phase,
   Link(..),
-  Applicative(..),
-  Alternative(..),
   get,
   count,
   yield,
@@ -90,6 +88,11 @@ instance Link Phase Phase Phase where
   {-# INLINE [2] (>>#) #-}
   s >># d = s >># toAutomaton d
 
+-- https://ghc.haskell.org/trac/ghc/ticket/12632
+-- GHC says "Rule ">>#/>>#/1.1" may never fire because ‘>>#’ might inline first
+-- and so on. This is a bug in GHC (possibly two closely related bugs). Don't
+-- delete the rules: they actually fire. Also don't delete the relevant
+-- INLINE pragmas: some future version of GHC might handle them properly.
 {-# RULES
 ">>#/>>#/1.1"
   forall (a :: Phase p b c x) (b :: Phase p c t r) (c :: Phase p t g o) .
