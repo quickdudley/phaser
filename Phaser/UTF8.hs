@@ -7,6 +7,7 @@ import Data.Bits
 import Data.Word
 import Data.List
 import Control.Monad
+import Control.Applicative
 
 import Phaser.Core
 

@@ -8,6 +8,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Word
 
 import Control.Monad
+import Control.Applicative
 
 import Phaser.Core
 
