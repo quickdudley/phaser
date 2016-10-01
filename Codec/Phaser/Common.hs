@@ -1,4 +1,4 @@
-module Phaser.Common (
+module Codec.Phaser.Common (
   Position(..),
   satisfy,
   match,

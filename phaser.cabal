@@ -16,7 +16,11 @@ version:             0.1.0.0
 synopsis:            A combinator library for incremental multiple pass parsers.
 
 -- A longer description of the package.
--- description:         
+-- description:      A combinator library for incremental multiple pass parsers.
+  Mostly inspired by the Text.ParserCombinators.ReadP module in the Base package
+  and the conduit package. It has similar capabilities to ReadP as well as
+  more detailed error reporting and the capacity for multiple passes (such as
+  lexing and parsing)
 
 -- URL for the project homepage or repository.
 homepage:            https://github.com/quickdudley/phaser
@@ -51,7 +55,9 @@ cabal-version:       >=1.10
 
 library
   -- Modules exported by the library.
-  exposed-modules:     Phaser, Phaser.Text, Phaser.ByteString, Phaser.Common, Phaser.Core, Phaser.UTF8
+  exposed-modules:     Codec.Phaser, 
+    Codec.Phaser.Text, Codec.Phaser.ByteString, Codec.Phaser.Common,
+    Codec.Phaser.Core, Codec.Phaser.UTF8
   
   -- Modules included in this library but not exported.
   -- other-modules:       

@@ -1,4 +1,4 @@
-module Phaser.UTF8 (
+module Codec.Phaser.UTF8 (
   utf8_char,
   utf8_stream
  ) where

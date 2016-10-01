@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes, MultiParamTypeClasses, FunctionalDependencies #-}
-module Phaser.Core (
+module Codec.Phaser.Core (
   Automaton,
   Phase,
   Link(..),

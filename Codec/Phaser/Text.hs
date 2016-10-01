@@ -1,4 +1,4 @@
-module Phaser.Text (
+module Codec.Phaser.Text (
 
  ) where
 

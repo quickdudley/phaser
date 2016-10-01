@@ -1,4 +1,4 @@
-module Phaser.ByteString (
+module Codec.Phaser.ByteString (
   unpackBS,
   unpackLBS
  ) where
