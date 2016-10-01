@@ -81,43 +81,44 @@ instance Functor (Automaton p i o) where
     go (Count p r) = Count p (go r)
 
 instance Link Phase Automaton Phase where
-  {-# INLINE [2] (>>#) #-}
-  s >># d = fromAutomaton (toAutomaton s >># d)
+  (>>#) = link_p_a
+
+link_p_a :: Phase p i t z -> Automaton p t o a -> Phase p i o a
+{-# INLINE [1] link_p_a #-}
+link_p_a s d = fromAutomaton (toAutomaton s >># d)
 
 instance Link Phase Phase Phase where
-  {-# INLINE [2] (>>#) #-}
-  s >># d = s >># toAutomaton d
+  (>>#) = link_p_p
 
--- https://ghc.haskell.org/trac/ghc/ticket/12632
--- GHC says "Rule ">>#/>>#/1.1" may never fire because ‘>>#’ might inline first
--- and so on. This is a bug in GHC (possibly two closely related bugs). Don't
--- delete the rules: they actually fire. Also don't delete the relevant
--- INLINE pragmas: some future version of GHC might handle them properly.
+link_p_p :: Phase p i t z -> Phase p t o a -> Phase p i o a
+{-# INLINE [1] link_p_p #-}
+link_p_p s d = s >># toAutomaton d
+
 {-# RULES
 ">>#/>>#/1.1"
   forall (a :: Phase p b c x) (b :: Phase p c t r) (c :: Phase p t g o) .
-    a >># (b >># c) = a >># (toAutomaton b >># toAutomaton c)
+    link_p_p a (link_p_p b c) = link_p_a a (toAutomaton b >># toAutomaton c)
 ">>#/>>#/1.2"
   forall (a :: Phase p b c x) (b :: Phase p c t r) (c :: Automaton p t g o) .
-    a >># (b >># c) = a >># (toAutomaton b >># c)
+    link_p_p a (link_p_a b c) = link_p_a a (toAutomaton b >># c)
 ">>#/>>#/2.1"
   forall
     (a :: Phase p b c x)
     (b :: Phase p c t y)
     (c :: Phase p t o z) .
-     (a >># b) >># c = a >># (b >># c)
+     link_p_p (link_p_p a b) c = link_p_p a (link_p_p b c)
 ">>#/>>#/2.2"
   forall
     (a :: Phase p b c x)
     (b :: Phase p c t y)
     (c :: Automaton p t o z) .
-     (a >># b) >># c = a >># (b >># c)
+     link_p_a (link_p_p a b) c = link_p_p a (link_p_a b c)
 ">>#/>>#/2.3"
   forall
     (a :: Phase p b c x)
     (b :: Automaton p c t y)
     (c :: Automaton p t o z) .
-     (a >># b) >># c = a >># (b >># c)
+     link_p_a (link_p_a a b) c = link_p_a a (b >># c)
  #-}
 
 
