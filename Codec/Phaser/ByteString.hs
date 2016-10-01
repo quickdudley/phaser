@@ -1,3 +1,11 @@
+{-|
+Module:     Codec.Parser.ByteString
+Copyright:  Jeremy List
+License:    BSD-3
+Maintainer: quick.dudley@gmail.com
+
+'Phase's for processing bytestrings.
+-}
 module Codec.Phaser.ByteString (
   unpackBS,
   unpackLBS
@@ -10,7 +18,7 @@ import Data.Word
 import Control.Monad
 import Control.Applicative
 
-import Phaser.Core
+import Codec.Phaser.Core
 
 -- | A 'Phase' which takes 'BS.ByteString's as input and yields their individual
 -- bytes.

@@ -1,3 +1,9 @@
+{-|
+Module:     Codec.Parser
+Copyright:  Jeremy List
+License:    BSD-3
+Maintainer: quick.dudley@gmail.com
+-}
 module Codec.Phaser (
   Phase,
   Automaton,
@@ -24,6 +30,6 @@ module Codec.Phaser (
   sepBy
  ) where
 
-import Phaser.Core
-import Phaser.Common
+import Codec.Phaser.Core
+import Codec.Phaser.Common
 

@@ -1,3 +1,11 @@
+{-|
+Module:     Codec.Parser.Core
+Copyright:  Jeremy List
+License:    BSD-3
+Maintainer: quick.dudley@gmail.com
+
+Core functions and types.
+-}
 {-# LANGUAGE RankNTypes, MultiParamTypeClasses, FunctionalDependencies #-}
 module Codec.Phaser.Core (
   Automaton,

@@ -1,3 +1,11 @@
+{-|
+Module:     Codec.Parser.UTF8
+Copyright:  Jeremy List
+License:    BSD-3
+Maintainer: quick.dudley@gmail.com
+
+'Phase's for decoding bytes to characters using UTF-8
+-}
 module Codec.Phaser.UTF8 (
   utf8_char,
   utf8_stream
@@ -9,7 +17,7 @@ import Data.List
 import Control.Monad
 import Control.Applicative
 
-import Phaser.Core
+import Codec.Phaser.Core
 
 -- | Consume a UTF-8 character from a stream of bytes and return it. Fail on
 -- invalid UTF-8.

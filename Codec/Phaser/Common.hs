@@ -1,3 +1,12 @@
+{-|
+Module:     Codec.Parser.Common
+Copyright:  Jeremy List
+License:    BSD-3
+Maintainer: quick.dudley@gmail.com
+
+Common functions which do not need to be in 'Phaser.Core', mostly for using
+'Phase's and 'Automaton's as parsers.
+-}
 module Codec.Phaser.Common (
   Position(..),
   satisfy,
@@ -22,12 +31,13 @@ import Data.Char
 import Control.Monad
 import Control.Applicative
 
-import Phaser.Core
+import Codec.Phaser.Core
 
--- | A data type for describing a position in a text file. 
+-- | A data type for describing a position in a text file. Constructor arguments
+-- are row number and column number.
 data Position = Position
-  {-# UNPACK #-}!Int -- ^ Line number
-  {-# UNPACK #-}!Int -- ^ Column number
+  {-# UNPACK #-}!Int
+  {-# UNPACK #-}!Int
  deriving (Eq,Ord)
 
 instance Show Position where

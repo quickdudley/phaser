@@ -13,10 +13,10 @@ name:                phaser
 version:             0.1.0.0
 
 -- A short (one-line) description of the package.
-synopsis:            A combinator library for incremental multiple pass parsers.
+synopsis:            Incremental multiple pass parser library.
 
 -- A longer description of the package.
--- description:      A combinator library for incremental multiple pass parsers.
+description:      A combinator library for incremental multiple pass parsers.
   Mostly inspired by the Text.ParserCombinators.ReadP module in the Base package
   and the conduit package. It has similar capabilities to ReadP as well as
   more detailed error reporting and the capacity for multiple passes (such as
@@ -52,6 +52,9 @@ extra-source-files:  README.md
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
 
+source-repository head
+  type:     git
+  location: https://github.com/quickdudley/phaser.git
 
 library
   -- Modules exported by the library.
