@@ -144,13 +144,14 @@ instance Link Automaton Automaton Automaton where
 
 -- | When the right argument fails: apply the left argument to the list of
 -- error messages.
-infixl 1 <??>
+infixr 1 <??>
 (<??>) :: ([String] -> [String]) -> Phase p i o a -> Phase p i o a
 f <??> Phase s = Phase (\e -> s (f . e))
 
 -- | Change the counter type of a Phase object.
-infixl 1 >#>
+infixr 1 >#>
 (>#>) :: ((p0 -> p0) -> p -> p) -> Phase p0 i o a -> Phase p i o a
+{-# INLINABLE [1] (>#>) #-}
 f >#> p = fromAutomaton $ go $ toAutomaton p where
   go (Result a) = Result a
   go (Ready n e) = Ready (fmap go n) e
@@ -159,18 +160,29 @@ f >#> p = fromAutomaton $ go $ toAutomaton p where
   go (Yield t r) = Yield t (go r)
   go (Count p r) = Count (f p) (go r)
 
+{-# RULES
+">#>/>#>" forall pt2 pt1 a . pt2 >#> (pt1 >#> a) = (pt2 . pt1) >#> a
+  #-}
+
 -- | Return one item of the input.
 get :: Phase p i o i
 get = Phase (flip Ready)
 
 -- | Modify the counter
 count :: (p -> p) -> Phase p i o ()
+{-# INLINE [1] count #-}
 count f = Phase (\_ c -> Count f (c ()))
 
 -- | Yield one item for the incremental output
 yield :: o -> Phase p i o ()
+{-# INLINE [1] yield #-}
 yield o = Phase (\_ c -> Yield o (c ()))
 
+{-# RULES
+"count/yield" forall p o . count p >> yield o = yield o >> count p
+  #-}
+
+{-# INLINABLE [1] prune1 #-}
 prune1 (Failed e1 :+++ Failed e2) = Failed (e1 . e2)
 prune1 (Failed e1 :+++ Ready n e2) = Ready n (e1 . e2)
 prune1 (Ready n e1 :+++ Failed e2) = Ready n (e1 . e2)
@@ -187,14 +199,23 @@ prune1 (Yield _ f@(Failed _)) = f
 prune1 (Yield _ f@(Count _ (Failed _))) = f
 prune1 a = a
 
+{-# RULES
+"prune1/prune1" forall a . prune1 (prune1 a) = prune1 a
+  #-}
+
 -- | Remove an 'Automaton''s ability to consume further input
 starve :: Automaton p i o a -> Automaton p z o a
+{-# INLINABLE [1] starve #-}
 starve (Result a) = Result a
 starve (Ready _ e) = Failed e
 starve (Failed e) = Failed e
 starve (a :+++ b) = prune1 (starve a :+++ starve b)
 starve (Yield o r) = prune1 (Yield o (starve r))
 starve (Count p r) = prune1 (Count p (starve r))
+
+{-# RULES
+"starve/starve" forall a . starve (starve a) = starve a
+  #-}
 
 -- | Convert a 'Phase' to an 'Automaton'. Subject to fusion.
 toAutomaton :: Phase p i o a -> Automaton p i o a
