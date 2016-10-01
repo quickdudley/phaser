@@ -14,7 +14,8 @@ module Phaser.Common (
   countChar,
   countLine,
   trackPosition,
-  parse
+  parse,
+  sepBy
  ) where
 
 import Data.Char
@@ -27,6 +28,34 @@ import Phaser.Core
 data Position = Position
   {-# UNPACK #-}!Int -- ^ Line number
   {-# UNPACK #-}!Int -- ^ Column number
+ deriving (Eq,Ord)
+
+instance Show Position where
+  showsPrec p (Position r c) = b m where
+    b a = if p > 0
+      then ('(' :) . a . (')' :)
+      else a
+    m = ("Row " ++) . showsPrec 0 r . (", Column " ++) . showsPrec 0 c
+
+instance Read Position where
+  readsPrec p = toReadS (toAutomaton (go p)) where
+    parenthes a = surround a
+      (many (satisfy isSpace) >> char '(')
+      (char ')' >> many (satisfy isSpace))
+    go 0 = inner <|> parenthes (go 0)
+    go _ = parenthes (go 0)
+    inner = do
+      many (satisfy isSpace)
+      iString "row"
+      some (satisfy isSpace)
+      r <- integer
+      many (satisfy isSpace)
+      char ','
+      many (satisfy isSpace)
+      iString "column"
+      some (satisfy isSpace)
+      c <- integer
+      return (Position r c)
 
 -- | Consume one input, return it if it matches the predicate, otherwise fail.
 satisfy :: (i -> Bool) -> Phase p i o i
@@ -126,4 +155,16 @@ trackPosition = goR where
 -- report.
 parse :: Phase Position i o a -> [i] -> Either [(Position,[String])] [a]
 parse = parse_ (Position 1 1)
+
+-- | sepBy p sep parses zero or more occurrences of p, separated by sep. Returns
+-- a list of values returned by p.
+sepBy :: Phase p i o a -> Phase p i o s -> Phase p i o [a]
+sepBy p sep = go id where
+  go acc = do
+    a <- p
+    let acc' = acc . (a :)
+    (sep >> go acc') <|> return (acc' [])
+
+surround :: Phase p i o a -> Phase p i o b -> Phase p i o e -> Phase p i o a
+surround m o c = (\_ r _ -> r) <$> o <*> m <*> c
 
