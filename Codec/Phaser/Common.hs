@@ -148,11 +148,11 @@ countLine = count (\(Position r _) -> Position (r + 1) 1)
 trackPosition :: Phase Position Char Char ()
 {-# INLINABLE trackPosition #-}
 trackPosition = goR where
-  goR = get >>= \c -> yield c >> case c of
+  goR = flip (<|>) (return ()) $ get >>= \c -> yield c >> case c of
     '\n' -> countLine >> goN
     '\r' -> countLine >> goR
     _ -> countChar >> goR
-  goN = get >>= \c -> yield c >> case c of
+  goN = flip (<|>) (return ()) $ get >>= \c -> yield c >> case c of
     '\n' -> countLine >> goN
     '\r' -> goR
     _ -> countChar >> goR
