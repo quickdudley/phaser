@@ -169,7 +169,7 @@ parse = parse_ (Position 1 1)
 -- | sepBy p sep parses zero or more occurrences of p, separated by sep. Returns
 -- a list of values returned by p.
 sepBy :: Phase p i o a -> Phase p i o s -> Phase p i o [a]
-sepBy p sep = go id where
+sepBy p sep = go id <|> return [] where
   go acc = do
     a <- p
     let acc' = acc . (a :)
