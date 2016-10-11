@@ -229,8 +229,6 @@ prune1 (Failed _ :+++ r@(Result _)) = r
 prune1 (Count p (Count q r)) = prune1 $ Count (\w -> let
   w' = p w
   in w' `seq` q w') r
-prune1 (Count p (a :+++ b)) =
-  prune1 (prune1 (Count p a) :+++ prune1 (Count p b))
 prune1 (Count p (Yield o r)) =
   prune1 (Yield o (prune1 (Count p r)))
 prune1 (Yield _ f@(Failed _)) = f
