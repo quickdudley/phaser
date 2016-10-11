@@ -14,6 +14,8 @@ module Codec.Phaser.Core (
   get,
   count,
   yield,
+  put1,
+  put,
   (<??>),
   (>#>),
   starve,
@@ -185,6 +187,16 @@ count f = Phase (\_ c -> Count f (c ()))
 yield :: o -> Phase p i o ()
 {-# INLINE [1] yield #-}
 yield o = Phase (\_ c -> Yield o (c ()))
+
+-- | Insert one value back into the input. May be used for implementing lookahead
+put1 :: i -> Phase p i o ()
+{-# INLINE [1] put1 #-}
+put1 i = Phase (\_ c -> step (c ()) i)
+
+-- | Put a list of values back into the input.
+put :: [i] -> Phase p i o ()
+{-# INLINE [1] put #-}
+put i = Phase (\_ c -> run (c ()) i)
 
 {-# RULES
 "count/yield" forall p o . count p >> yield o = yield o >> count p
