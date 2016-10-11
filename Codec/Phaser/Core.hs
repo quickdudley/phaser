@@ -12,11 +12,12 @@ module Codec.Phaser.Core (
   Phase,
   Link(..),
   get,
+  put,
+  put1,
   count,
   yield,
-  put1,
-  put,
   (<??>),
+  (<?>),
   (>#>),
   starve,
   toAutomaton,
@@ -75,7 +76,7 @@ instance Monad (Phase p i o) where
 
 instance Alternative (Phase p i o) where
   empty = Phase (\e _ -> Failed e)
-  Phase a <|> Phase b = Phase (\e c -> prune1 (a e c :+++ b e c))
+  Phase a <|> Phase b = Phase (\e c -> prune1 (a e c :+++ b id c))
 
 instance MonadPlus (Phase p i o) where
   mzero = empty
@@ -153,10 +154,19 @@ instance Link Automaton Automaton Automaton where
  #-} -}
 
 -- | When the right argument fails: apply the left argument to the list of
--- error messages.
+-- error messages. Depreciated because it doesn't work correctly for all
+-- arguments and fixing it would break the 'Alternative' and 'MonadPlus'
+-- instances.
 infixr 1 <??>
+{-# WARNING (<??>) "<??> is faulty and will be removed in future versions. \
+  \Please use <?> instead" #-}
 (<??>) :: ([String] -> [String]) -> Phase p i o a -> Phase p i o a
 f <??> Phase s = Phase (\e -> s (f . e))
+
+-- | If parsing fails in the right argument: prepend the left argument to the
+-- errors
+infixr 1 <?>
+e <?> Phase s = Phase (\e1 -> s ((e :) . e1))
 
 -- | Change the counter type of a Phase object.
 infixr 1 >#>
@@ -208,6 +218,8 @@ prune1 (Failed e1 :+++ Ready n e2) = Ready n (e1 . e2)
 prune1 (Ready n e1 :+++ Failed e2) = Ready n (e1 . e2)
 prune1 (Ready n1 e1 :+++ Ready n2 e2) =
   Ready (\i -> prune1 $ n1 i :+++ n2 i) (e1 . e2)
+prune1 (r@(Result _) :+++ Failed _) = r
+prune1 (Failed _ :+++ r@(Result _)) = r
 prune1 (Count p (Count q r)) = prune1 $ Count (\w -> let
   w' = p w
   in w' `seq` q w') r
@@ -342,7 +354,6 @@ options = ($ []) . go where
   go (Count p r) = (fmap . fmap) (Count p) $ go r
   go a = (a :)
 
-
 -- | Separate unconditional counter modifiers from an automaton
 readCount :: Automaton p i o a -> (p -> p, Automaton p i o a)
 readCount = go where
@@ -367,4 +378,3 @@ outputs = go where
     (o, r') = go r
     in (o, prune1 $ Count p r')
   go a = ([], a)
-
