@@ -26,14 +26,18 @@ module Codec.Phaser.Common (
   parse,
   sepBy,
   munch,
-  munch1
+  munch1,
+  parseFile,
+  latin1
  ) where
 
 import Data.Char
+import Data.Word
 import Control.Monad
 import Control.Applicative
 
 import Codec.Phaser.Core
+import qualified Codec.Phaser.ByteString as BP
 
 -- | A data type for describing a position in a text file. Constructor arguments
 -- are row number and column number.
@@ -196,4 +200,18 @@ munch1 p = go id where
     if p c
       then go (acc . (c :)) <|> (eof >> return (acc [c]))
       else put1 c >> return (acc [])
+
+-- | Run a parser on input from a file. Input is provided as bytes, if
+-- characters are needed: a decoding phase such as
+-- 'Codec.Phaser.UTF8.utf8_stream' or 'latin1' may be used
+parseFile :: Phase Position Word8 o a -> FilePath ->
+  IO (Either [(Position,[String])] [a])
+parseFile = BP.parseFile_ (Position 1 1)
+
+-- | Decode bytes to characters using the Latin1 (ISO8859-1) encoding
+latin1 :: Phase p Word8 Char ()
+latin1 = go where
+  go = flip (<|>) (return ()) $ 
+    fmap (toEnum . fromIntegral) get >>= yield >> go
+    
 
