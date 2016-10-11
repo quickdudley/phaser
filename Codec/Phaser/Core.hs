@@ -145,7 +145,6 @@ instance Link Automaton Automaton Automaton where
     Count p r !!! d = prune1 (Count p (r !!! d))
     s !!! Count p r = prune1 (Count p (s !!! r))
     Ready n e !!! d = Ready (\t -> n t !!! d) e
-    s !!! (a :+++ b) = prune1 ((s !!! a) :+++ (s !!! b))
 
 {- 
 {-# RULES
