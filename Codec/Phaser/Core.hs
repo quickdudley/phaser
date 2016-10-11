@@ -142,10 +142,11 @@ instance Link Automaton Automaton Automaton where
     _ !!! Failed e = Failed e
     Result _ !!! d = starve d
     (a :+++ b) !!! d = prune1 ((a !!! d) :+++ (b !!! d))
-    s !!! (a :+++ b) = prune1 ((s !!! a) :+++ (s !!! b))
     Count p r !!! d = prune1 (Count p (r !!! d))
     s !!! Count p r = prune1 (Count p (s !!! r))
     Ready n e !!! d = Ready (\t -> n t !!! d) e
+    s !!! (a :+++ b) = prune1 ((s !!! a) :+++ (s !!! b))
+
 {- 
 {-# RULES
 "toAutomaton/fromAutomaton" forall a . toAutomaton (fromAutomaton a) = a
