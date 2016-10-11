@@ -128,7 +128,7 @@ decimal = do
   go i s acc = do
     let
      p = if i
-      then (("At least one digit required after decimal point" :) <??>)
+      then ("At least one digit required after decimal point" <?>)
       else id
     d <- p $ fmap (fromIntegral . digitToInt) $ satisfy isDigit
     let acc' = acc + d * s
@@ -149,12 +149,12 @@ trackPosition :: Phase Position Char Char ()
 {-# INLINABLE trackPosition #-}
 trackPosition = goR where
   goR = flip (<|>) (return ()) $ get >>= \c -> yield c >> case c of
-    '\n' -> countLine >> goN
-    '\r' -> countLine >> goR
+    '\r' -> countLine >> goN
+    '\n' -> countLine >> goR
     _ -> countChar >> goR
   goN = flip (<|>) (return ()) $ get >>= \c -> yield c >> case c of
-    '\n' -> countLine >> goN
-    '\r' -> goR
+    '\r' -> countLine >> goN
+    '\n' -> goR
     _ -> countChar >> goR
 
 -- | Use a 'Phase' as a parser. Note that unlike other parsers the reported
@@ -177,4 +177,3 @@ sepBy p sep = go id <|> return [] where
 
 surround :: Phase p i o a -> Phase p i o b -> Phase p i o e -> Phase p i o a
 surround m o c = (\_ r _ -> r) <$> o <*> m <*> c
-
