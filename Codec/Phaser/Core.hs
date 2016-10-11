@@ -131,7 +131,6 @@ link_p_p s d = s >># toAutomaton d
      link_p_a (link_p_a a b) c = link_p_a a (b >># c)
  #-}
 
-
 instance Link Automaton Automaton Automaton where
   {-# INLINE [2] (>>#) #-}
   (>>#) = (!!!) where
@@ -144,6 +143,7 @@ instance Link Automaton Automaton Automaton where
     (a :+++ b) !!! d = prune1 ((a !!! d) :+++ (b !!! d))
     Count p r !!! d = prune1 (Count p (r !!! d))
     s !!! Count p r = prune1 (Count p (s !!! r))
+    s !!! Yield o r = Yield o (s !!! r)
     Ready n e !!! d = Ready (\t -> n t !!! d) e
 
 {- 
