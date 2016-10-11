@@ -16,6 +16,8 @@ module Codec.Phaser (
   get,
   count,
   yield,
+  put1,
+  put,
   run,
   step,
   extract,
