@@ -32,7 +32,7 @@ utf8_char = do
      | otherwise -> go 0x20 (c1 .&. 0x3F)
  where
   go z a = do
-    c2 <- ("Incomplete UTF-8 codepoint":) <??> do
+    c2 <- "Incomplete UTF-8 codepoint" <?> do
       c <- fmap fromIntegral get
       guard $ c .&. 0xc0 == 0x80
       return c
@@ -43,4 +43,3 @@ utf8_char = do
 -- | Consume any number of UTF-8 characters and yield them.
 utf8_stream :: Phase p Word8 Char ()
 utf8_stream = (utf8_char >>= yield >> utf8_stream) <|> return ()
-
