@@ -10,7 +10,7 @@ module Codec.Phaser (
   Position(..),
   (>>#),
   (>#>),
-  (<??>),
+  (<?>),
   parse,
   parse_,
   get,
@@ -29,7 +29,9 @@ module Codec.Phaser (
   iString,
   integer,
   decimal,
-  sepBy
+  sepBy,
+  munch,
+  munch1
  ) where
 
 import Codec.Phaser.Core

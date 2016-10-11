@@ -24,7 +24,9 @@ module Codec.Phaser.Common (
   countLine,
   trackPosition,
   parse,
-  sepBy
+  sepBy,
+  munch,
+  munch1
  ) where
 
 import Data.Char
@@ -177,3 +179,21 @@ sepBy p sep = go id <|> return [] where
 
 surround :: Phase p i o a -> Phase p i o b -> Phase p i o e -> Phase p i o a
 surround m o c = (\_ r _ -> r) <$> o <*> m <*> c
+
+-- | Parses the first zero or more values satisfying the predicate. Always
+-- succeds, exactly once, having consumed all the characters Hence NOT the same
+-- as (many (satisfy p))
+munch :: (i -> Bool) -> Phase p i o [i]
+munch p = (eof >> return []) <|> munch1 p
+
+-- | Parses the first one or more values satisfying the predicate. Always
+-- succeds, exactly once, having consumed all the characters Hence NOT the same
+-- as (some (satisfy p))
+munch1 :: (i -> Bool) -> Phase p i o [i]
+munch1 p = go id where
+  go acc = do
+    c <- get
+    if p c
+      then go (acc . (c :)) <|> (eof >> return (acc [c]))
+      else put1 c >> return (acc [])
+

@@ -16,6 +16,7 @@ module Codec.Phaser.Core (
   put1,
   count,
   yield,
+  eof,
   (<??>),
   (<?>),
   (>#>),
@@ -198,6 +199,10 @@ yield :: o -> Phase p i o ()
 {-# INLINE [1] yield #-}
 yield o = Phase (\_ c -> Yield o (c ()))
 
+-- | Fail if any more input is provided.
+eof :: Phase p i o ()
+eof = Phase (\e c -> prune1 (Failed e :+++ starve (c ())))
+
 -- | Insert one value back into the input. May be used for implementing lookahead
 put1 :: i -> Phase p i o ()
 {-# INLINE [1] put1 #-}
@@ -378,3 +383,4 @@ outputs = go where
     (o, r') = go r
     in (o, prune1 $ Count p r')
   go a = ([], a)
+
