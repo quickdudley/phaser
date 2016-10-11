@@ -150,7 +150,9 @@ countLine :: Phase Position i o ()
 {-# INLINE countLine #-}
 countLine = count (\(Position r _) -> Position (r + 1) 1)
 
--- | Count the lines and characters from the input before yielding them again
+-- | Count the lines and characters from the input before yielding them again.
+-- If the phase pipeline does not include this or similar: parsing errors will
+-- not report the correct position.
 trackPosition :: Phase Position Char Char ()
 {-# INLINABLE trackPosition #-}
 trackPosition = goR where
