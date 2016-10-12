@@ -190,7 +190,7 @@ surround m o c = (\_ r _ -> r) <$> o <*> m <*> c
 -- succeds, exactly once, having consumed all the characters Hence NOT the same
 -- as (many (satisfy p))
 munch :: (i -> Bool) -> Phase p i o [i]
-munch p = (eof >> return []) <|> munch1 p
+munch p = munch1 p <|> (eof >> return [])
 
 -- | Parses the first one or more values satisfying the predicate. Always
 -- succeds, exactly once, having consumed all the characters Hence NOT the same
