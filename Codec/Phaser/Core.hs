@@ -71,10 +71,13 @@ instance Applicative (Phase p i o) where
   pure a = Phase (\e c -> c a)
   Phase f <*> Phase a = Phase (\e c -> f e (\f' -> a e (c . f')))
 
+-- This is the first time I've ever created a separate '>>' method for a monad
+-- instance, but turns out in this case it's a significant optimization.
 instance Monad (Phase p i o) where
   return = pure
   fail s = Phase (\e _ -> Failed (e . (s:)))
   Phase a >>= f = Phase (\e c -> a e (\a' -> let Phase b = f a' in b e c))
+  Phase a >> Phase b = Phase (\e c -> a e (const (b e c)))
 
 instance Alternative (Phase p i o) where
   empty = Phase (\e _ -> Failed e)
