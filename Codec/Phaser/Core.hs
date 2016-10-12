@@ -207,7 +207,10 @@ eof = Phase (\e c -> prune1 (Failed e :+++ starve (c ())))
 -- | Insert one value back into the input. May be used for implementing lookahead
 put1 :: i -> Phase p i o ()
 {-# INLINE [1] put1 #-}
-put1 i = Phase (\_ c -> step (c ()) i)
+put1 i = Phase (\_ c -> case beforeStep (c ()) of
+  Right n -> step n i
+  Left e -> e
+ )
 
 -- | Put a list of values back into the input.
 put :: [i] -> Phase p i o ()
