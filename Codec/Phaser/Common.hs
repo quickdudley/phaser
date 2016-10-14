@@ -10,6 +10,7 @@ Common functions which do not need to be in 'Phaser.Core', mostly for using
 module Codec.Phaser.Common (
   Position(..),
   satisfy,
+  (>><),
   match,
   char,
   iChar,
