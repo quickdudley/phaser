@@ -17,7 +17,6 @@ module Codec.Phaser.Core (
   count,
   yield,
   eof,
-  (>><),
   (<??>),
   (<?>),
   (>#>),
@@ -71,6 +70,8 @@ instance Functor (Phase p i o) where
 instance Applicative (Phase p i o) where
   pure a = Phase (\e c -> c a)
   Phase f <*> Phase a = Phase (\e c -> f e (\f' -> a e (c . f')))
+  Phase a <* Phase b = Phase (\e c -> a e (\a' -> b e (\_ -> c a')))
+  (*>) = (>>)
 
 -- This is the first time I've ever created a separate '>>' method for a monad
 -- instance, but turns out in this case it's a significant optimization.
@@ -79,15 +80,6 @@ instance Monad (Phase p i o) where
   fail s = Phase (\e _ -> Failed (e . (s:)))
   Phase a >>= f = Phase (\e c -> a e (\a' -> let Phase b = f a' in b e c))
   Phase a >> Phase b = Phase (\e c -> a e (const (b e c)))
-
-infixl 1 >><
--- | Runs two 'Phase's in order and returns the result of the first one.
--- a >>< b is equivalent to the following two snippets, but is faster:
---
--- > a >>= \a' -> b >> return a
--- > const <$> a <*> b
-(>><) :: Phase p i o a -> Phase p i o b -> Phase p i o a
-Phase a >>< Phase b = Phase (\e c -> a e (\a' -> b e (\_ -> c a')))
 
 instance Alternative (Phase p i o) where
   empty = Phase (\e _ -> Failed e)
