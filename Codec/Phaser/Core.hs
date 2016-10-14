@@ -82,6 +82,11 @@ instance Monad (Phase p i o) where
 instance Alternative (Phase p i o) where
   empty = Phase (\e _ -> Failed e)
   Phase a <|> Phase b = Phase (\e c -> prune1 (a e c :+++ b id c))
+  many a = some a <|> pure []
+  some (Phase a) = Phase (\e c -> let
+    go acc = a e (\x -> let acc' = acc . (x:) in prune1 (go acc' :+++ c (acc' [])))
+    in go id
+   )
 
 instance MonadPlus (Phase p i o) where
   mzero = empty
