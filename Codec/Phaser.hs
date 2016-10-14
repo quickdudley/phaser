@@ -11,6 +11,7 @@ module Codec.Phaser (
   (>>#),
   (>#>),
   (<?>),
+  (>><),
   parse,
   parse_,
   get,
