@@ -26,6 +26,7 @@ module Codec.Phaser.Common (
   trackPosition,
   parse,
   sepBy,
+  sepBy1,
   munch,
   munch1,
   parseFile,
@@ -178,11 +179,12 @@ parse = parse_ (Position 1 1)
 -- | sepBy p sep parses zero or more occurrences of p, separated by sep. Returns
 -- a list of values returned by p.
 sepBy :: Phase p i o a -> Phase p i o s -> Phase p i o [a]
-sepBy p sep = go id <|> return [] where
-  go acc = do
-    a <- p
-    let acc' = acc . (a :)
-    (sep >> go acc') <|> return (acc' [])
+sepBy p sep = sepBy1 p sep <|> return []
+
+-- | sepBy1 p sep parses one or more occurrences of p, separated by sep. Returns
+-- a list of values returned by p.
+sepBy1 :: Phase p i o a -> Phase p i o s -> Phase p i o [a]
+sepBy1 p sep = ((:) <$> p <*> many (sep >> p))
 
 surround :: Phase p i o a -> Phase p i o b -> Phase p i o e -> Phase p i o a
 surround m o c = (\_ r _ -> r) <$> o <*> m <*> c
