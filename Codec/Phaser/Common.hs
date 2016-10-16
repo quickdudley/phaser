@@ -16,9 +16,11 @@ module Codec.Phaser.Common (
   string,
   iString,
   integerDecimal,
+  positiveIntegerDecimal,
   decimal,
   directHex,
   hex,
+  positiveInteger,
   integer,
   countChar,
   countLine,
@@ -101,13 +103,18 @@ string t = go t where
 iString :: String -> Phase p Char o String
 iString = mapM iChar
 
--- | Take some digits and parse a number
-integerDecimal :: Num a => Phase p Char o a
-integerDecimal = go 0 where
+-- | Parse a standard positive base 10 integer
+positiveIntegerDecimal :: Num a => Phase p Char o a
+positiveIntegerDecimal = go 0 where
   go acc = do
     d <- fmap (fromIntegral . digitToInt) $ satisfy isDigit
     let acc' = acc * 10 + d
     acc' `seq` go acc' <|> return acc'
+
+-- | Parse a standard base 10 integer
+integerDecimal :: Num a => Phase p Char o a
+integerDecimal = (pure id <|> (char '-' *> munch isSpace *> pure negate)) <*>
+  positiveIntegerDecimal
 
 -- | Take some hexadecimal digits and parse a number from hexadecimal
 directHex :: Num a => Phase p Char o a
@@ -120,6 +127,10 @@ directHex = go 0 where
 -- | Parse a hexadecimal number prefixed with "Ox"
 hex :: Num a => Phase p Char o a
 hex = string "0x" >> directHex
+
+-- | Parse a positive integer from either decimal or hexadecimal format
+positiveInteger :: Num a => Phase p Char o a
+positiveInteger = positiveIntegerDecimal <|> hex
 
 -- | Parse a number either from decimal digits or from hexadecimal prefixed with
 -- "0x"
