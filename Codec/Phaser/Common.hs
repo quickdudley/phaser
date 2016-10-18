@@ -203,13 +203,23 @@ surround m o c = (\_ r _ -> r) <$> o <*> m <*> c
 -- succeds, exactly once, having consumed all the characters Hence NOT the same
 -- as (many (satisfy p))
 munch :: (i -> Bool) -> Phase p i o [i]
-munch p = munch1 p <|> (eof >> return [])
+munch p = go id where
+  go acc = flip (<|>) (eof >> return (acc [])) $ do
+    c <- get
+    if p c
+      then go (acc . (c :)) <|> (eof >> return (acc [c]))
+      else put1 c >> return (acc [])
 
 -- | Parses the first one or more values satisfying the predicate. Always
 -- succeds, exactly once, having consumed all the characters Hence NOT the same
 -- as (some (satisfy p))
 munch1 :: (i -> Bool) -> Phase p i o [i]
-munch1 p = go id where
+munch1 p = go1 where
+  go1 = do
+    c <- get
+    if p c
+      then go (c :) <|> (eof >> return [c])
+      else empty
   go acc = do
     c <- get
     if p c
