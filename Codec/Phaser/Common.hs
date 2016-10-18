@@ -207,7 +207,7 @@ munch p = go id where
   go acc = flip (<|>) (eof >> return (acc [])) $ do
     c <- get
     if p c
-      then go (acc . (c :)) <|> (eof >> return (acc [c]))
+      then go (acc . (c :))
       else put1 c >> return (acc [])
 
 -- | Parses the first one or more values satisfying the predicate. Always
