@@ -243,6 +243,8 @@ prune1 (f@(Failed _) :+++ (a :+++ b)) = prune1 (prune1 (f :+++ a) :+++ b)
 prune1 ((a :+++ b) :+++ f@(Failed _)) = prune1 (a :+++ prune1 (b :+++ f))
 prune1 (f@(Failed _) :+++ Yield o r) = prune1 (Yield o (prune1 (f :+++ r)))
 prune1 (Yield o r :+++ f@(Failed _)) = prune1 (Yield o (prune1 (r :+++ f)))
+prune1 (a@(Ready _ _) :+++ (b@(Ready _ _) :+++ c)) = prune1 (prune1 (a :+++ b) :+++ c)
+prune1 ((a :+++ b@(Ready _ _)) :+++ c@(Ready _ _)) = prune1 (a :+++ prune1 (b :+++ c))
 prune1 (Count p (Count q r)) = prune1 $ Count (\w -> let
   w' = p w
   in w' `seq` q w') r
