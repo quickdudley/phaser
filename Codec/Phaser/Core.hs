@@ -11,6 +11,7 @@ module Codec.Phaser.Core (
   Automaton,
   Phase,
   Link(..),
+  Source(..),
   get,
   put,
   put1,
@@ -63,6 +64,11 @@ class Link s d l | s d -> l where
   -- | Take the incremental output of the first argument and use it as input
   -- for the second argument. Discard the final output of the first argument.
   (>>#) :: s p b c x -> d p c t a -> l p b t a
+
+infixl 5 $#$
+class Source s where
+  -- | Apply a function to each value of the incremental output
+  ($#$) :: s p b c x -> (c -> t) -> s p b t x
 
 instance Functor (Phase p i o) where
   fmap f (Phase x) = Phase (\e c -> x e (c . f))
@@ -159,11 +165,32 @@ instance Link Automaton Automaton Automaton where
     s !!! Yield o r = Yield o (s !!! r)
     Ready n e !!! d = Ready (\t -> n t !!! d) e
 
-{- 
+instance Source Automaton where
+  ($#$) = source_a
+
+source_a :: Automaton p i c a -> (c -> t) -> Automaton p i t a
+{-# INLINE[1] source_a #-}
+source_a a f = go a where
+  go (Result a) = Result a
+  go (Ready p e) = Ready (fmap go p) e
+  go (Failed e) = Failed e
+  go (a :+++ b) = go a :+++ go b
+  go (Yield o r) = Yield (f o) (go r)
+  go (Count p r) = Count p (go r)
+
+instance Source Phase where
+  ($#$) = source_p
+
+{-# INLINE[1] source_p #-}
+source_p p f = fromAutomaton $ source_a (toAutomaton p) f
+
 {-# RULES
+"$#$/$#$/1" forall a f1 f2 . source_a (source_a a f1) f2 = source_a a (f2 . f1)
+"$#$/$#$/1" forall a f1 f2 . source_p (source_p a f1) f2 = source_p a (f2 . f1)
+"toAutomaton/$#$" forall p f . toAutomaton (source_p p f) = source_a (toAutomaton p) f
 "toAutomaton/fromAutomaton" forall a . toAutomaton (fromAutomaton a) = a
 "fromAutomaton/toAutomaton" forall a . fromAutomaton (toAutomaton a) = a
- #-} -}
+ #-}
 
 -- | When the right argument fails: apply the left argument to the list of
 -- error messages. Depreciated because it doesn't work correctly for all
@@ -405,4 +432,3 @@ outputs = go where
     (o, r') = go r
     in (o, prune1 $ Count p r')
   go a = ([], a)
-
