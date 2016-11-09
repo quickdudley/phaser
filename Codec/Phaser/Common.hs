@@ -210,9 +210,9 @@ munch p = go id where
       then go (acc . (c :))
       else put1 c >> return (acc [])
 
--- | Parses the first one or more values satisfying the predicate. Always
--- succeds, exactly once, having consumed all the characters Hence NOT the same
--- as (some (satisfy p))
+-- | Parses the first one or more values satisfying the predicate. Succeeds if
+-- at least one value matches, having consumed all the characters Hence NOT the
+-- same as (some (satisfy p))
 munch1 :: (i -> Bool) -> Phase p i o [i]
 munch1 p = go1 where
   go1 = do
