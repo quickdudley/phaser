@@ -60,7 +60,7 @@ library
   -- Modules exported by the library.
   exposed-modules:     Codec.Phaser, 
     Codec.Phaser.Text, Codec.Phaser.ByteString, Codec.Phaser.Common,
-    Codec.Phaser.Core, Codec.Phaser.UTF8
+    Codec.Phaser.Core, Codec.Phaser.UTF8, Codec.Phaser.UTF16
   
   -- Modules included in this library but not exported.
   -- other-modules:       
