@@ -1,4 +1,10 @@
 module Codec.Phaser.UTF16 (
+  utf16_char,
+  utf16_word16_stream,
+  utf16_stream_useBOM,
+  utf16_stream_le,
+  utf16_stream_be,
+  utf16_stream_unknown
  ) where
 
 import Data.Bits
@@ -19,11 +25,11 @@ unit_le = (\a b -> a .|. shiftL b 8) <$> byte <*> byte where
   byte = fromIntegral <$> get
 
 useBOM_unit :: Phase p Word8 o1 (Phase p Word8 o2 Word16)
-useBOM_unit = "UTF-16: No byte order mark" <?> (go unit_be unit_be <|> go unit_le unit_le) where
-  go u r = do
-    bom <- u
+useBOM_unit = "UTF-16: No byte order mark" <?> (go unit_be <|> go unit_le) where
+  go u = do
+    bom <- fitYield u
     if bom == 0xFEFF
-      then return r
+      then return $ fitYield u
       else empty
 
 utf16_char :: Phase p Word16 o Char
@@ -47,16 +53,17 @@ utf16_word16_stream = mkStream utf16_char
 utf16_stream_useBOM :: Phase p Word8 Char ()
 utf16_stream_useBOM = do
   unit <- useBOM_unit :: Phase p Word8 Char (Phase p Word8 Word16 Word16)
-  mkStream unit >># (utf16_word16_stream :: Phase p Word16 Char ())
+  mkStream unit >># utf16_word16_stream
 
 utf16_stream_le = mkStream unit_le >># utf16_word16_stream
 
 utf16_stream_be = mkStream unit_be >># utf16_word16_stream
 
 utf16_stream_unknown = flip (<|>) (return ()) $ do
-  (unit0,unit) <- return (unit_le,unit_le) <|> return (unit_be,unit_be)
-  h <- unit0
+  unit <- return unit_le <|> return unit_be
+  h <- fitYield unit
   case h of
-    0xFEFF -> mkStream unit >># utf16_word16_stream
+    0xFEFF -> mkStream (fitYield unit) >># utf16_word16_stream
     0xFFFE -> fail "Reversed byte order mark"
-    _ -> mkStream unit >># (put1 h >> utf16_word16_stream)
+    _ -> mkStream (fitYield unit) >># (put1 h >> utf16_word16_stream)
+
