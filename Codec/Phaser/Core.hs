@@ -24,6 +24,7 @@ module Codec.Phaser.Core (
   starve,
   toAutomaton,
   fromAutomaton,
+  fitYield,
   beforeStep,
   step,
   extract,
@@ -38,6 +39,8 @@ module Codec.Phaser.Core (
 
 import Control.Applicative
 import Control.Monad
+import Data.Void
+import Unsafe.Coerce
 
 -- | Represents a nondeterministic computation in progress.
 -- There are 4 type parameters: a counter type (may be used for tracking line
@@ -317,6 +320,11 @@ fromAutomaton a = Phase (\e' c -> let
   continue (Yield o r) = prune1 (Yield o (continue r))
   in continue a
  )
+
+-- | Take a 'Phase' or 'Automaton' which doesn't 'yield' anything and allow
+-- it to be used in a chain containing yield statements
+fitYield :: Source s => s p i Void a -> s p i o a
+fitYield = unsafeCoerce
 
 -- | Optional pre-processing of an automaton before passing it more input.
 -- Produces 'Right' with all "final outputs" and errors stripped if the
