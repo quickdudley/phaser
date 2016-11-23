@@ -25,6 +25,7 @@ module Codec.Phaser.Common (
   countChar,
   countLine,
   trackPosition,
+  normalizeNewlines,
   parse,
   sepBy,
   sepBy1,
@@ -34,6 +35,7 @@ module Codec.Phaser.Common (
   latin1
  ) where
 
+import Data.Bits
 import Data.Char
 import Data.Word
 import Control.Monad
@@ -164,18 +166,39 @@ countLine = count (\(Position r _) -> Position (r + 1) 1)
 
 -- | Count the lines and characters from the input before yielding them again.
 -- If the phase pipeline does not include this or similar: parsing errors will
--- not report the correct position.
+-- not report the correct position. Unix, Windows, Mac-OS Classic, and Acorn
+-- newline formats are all recognized.
 trackPosition :: Phase Position Char Char ()
-{-# INLINABLE trackPosition #-}
-trackPosition = goR where
-  goR = flip (<|>) (return ()) $ get >>= \c -> yield c >> case c of
-    '\r' -> countLine >> goN
-    '\n' -> countLine >> goR
-    _ -> countChar >> goR
+{-# INLINABLE[1] trackPosition #-}
+trackPosition = go where
+  go = flip (<|>) (return ()) $ get >>= \c -> yield c >> case c of
+    '\n' -> countLine >> goN
+    '\r' -> countLine >> goR
+    _ -> countChar >> go
   goN = flip (<|>) (return ()) $ get >>= \c -> yield c >> case c of
-    '\r' -> countLine >> goN
-    '\n' -> goR
-    _ -> countChar >> goR
+    '\n' -> countLine >> goN
+    '\r' -> go
+    _ -> countChar >> go
+  goR = flip (<|>) (return ()) $ get >>= \c -> yield c >> case c of
+    '\n' -> go
+    '\r' -> countLine >> goR
+    _ -> countChar >> go
+
+-- | Converts all line separators into Unix format.
+normalizeNewlines :: Phase p Char Char ()
+normalizeNewlines = go where
+  go = flip (<|>) (return ()) $ get >>= \c -> case c of
+    '\n' -> yield '\n' >> goN
+    '\r' -> yield '\n' >> goR
+    _ -> yield c >> go
+  goN = flip (<|>) (return ()) $ get >>= \c -> case c of
+    '\n' -> yield '\n' >> goN
+    '\r' -> go
+    _ -> yield c >> go
+  goR = flip (<|>) (return ()) $ get >>= \c -> case c of
+    '\n' -> go
+    '\r' -> yield '\n' >> goR
+    _ -> yield c >> go
 
 -- | Use a 'Phase' as a parser. Note that unlike other parsers the reported
 -- position in the input when the parser fails is the position reached when
@@ -238,5 +261,11 @@ latin1 :: Phase p Word8 Char ()
 latin1 = go where
   go = flip (<|>) (return ()) $ 
     fmap (toEnum . fromIntegral) get >>= yield >> go
-    
 
+-- | Decode bytes to characters using the ASCII encoding, aborting if
+-- any byte is outside the ASCII range.
+ascii :: Phase p Word8 Char ()
+ascii = go where
+  go = flip (<|>) (return ()) $ get >>= \c -> if c .&. 0x80 == 0
+    then yield (toEnum $ fromIntegral c) >> go
+    else fail "Byte out of ASCII range"
