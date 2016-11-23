@@ -158,14 +158,14 @@ instance Link Automaton Automaton Automaton where
   (>>#) = (!!!) where
     Yield o r !!! d = case beforeStep d of
       Left e -> e
-      Right d' -> r !!! step d' o
+      Right d' -> let s = step d' o in s `seq` (r !!! s)
     Failed e !!! _ = Failed e
     _ !!! Failed e = Failed e
     Result _ !!! d = starve d
+    s !!! Yield o r = prune1 (Yield o (s !!! r))
     (a :+++ b) !!! d = prune1 ((a !!! d) :+++ (b !!! d))
     Count p r !!! d = prune1 (Count p (r !!! d))
     s !!! Count p r = prune1 (Count p (s !!! r))
-    s !!! Yield o r = Yield o (s !!! r)
     Ready n e !!! d = Ready (\t -> n t !!! d) e
 
 instance Source Automaton where
