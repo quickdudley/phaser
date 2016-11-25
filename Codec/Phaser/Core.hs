@@ -163,11 +163,10 @@ instance Link Automaton Automaton Automaton where
     Failed e !!! _ = Failed e
     _ !!! Failed e = Failed e
     Result _ !!! d = starve d
-    s@(_ :+++ _) !!! Yield o r = prune1 (Yield o (s !!! r))
-    (a :+++ b) !!! d = prune1 ((a !!! d) :+++ (b !!! d))
     Count p r !!! d = prune1 (Count p (r !!! d))
     s !!! Yield o r = prune1 (Yield o (s !!! r))
     s !!! Count p r = prune1 (Count p (s !!! r))
+    (a :+++ b) !!! d = prune1 ((a !!! d) :+++ (b !!! d))
     Ready n e !!! d = Ready (\t -> n t !!! d) e
 
 instance Source Automaton where
