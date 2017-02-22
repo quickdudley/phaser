@@ -19,12 +19,12 @@ import Control.Applicative
 import Codec.Phaser.Core
 
 -- | A 'Phase' which takes 'TS.Text's and yields their individual characters
-unpackText :: Phase p TS.Text Char ()
+unpackText :: (Monoid p) => Phase p TS.Text Char ()
 unpackText = (go >> unpackText) <|> return () where
   go = get >>= TS.foldr (\w r -> yield w >> r) (return ())
 
 -- | A 'Phase' which takes 'TL.Text's and yields their individual characters
-unpackLazyText :: Phase p TL.Text Char ()
+unpackLazyText :: (Monoid p) => Phase p TL.Text Char ()
 unpackLazyText = (go >> unpackLazyText) <|> return () where
   go = get >>= TL.foldr (\w r -> yield w >> r) (return ())
 

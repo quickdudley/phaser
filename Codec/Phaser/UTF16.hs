@@ -24,7 +24,7 @@ unit_le :: Phase p Word8 o Word16
 unit_le = (\a b -> a .|. shiftL b 8) <$> byte <*> byte where
   byte = fromIntegral <$> get
 
-useBOM_unit :: Phase p Word8 o1 (Phase p Word8 o2 Word16)
+useBOM_unit :: Monoid p => Phase p Word8 o1 (Phase p Word8 o2 Word16)
 useBOM_unit = "UTF-16: No byte order mark" <?> (go unit_be <|> go unit_le) where
   go u = do
     bom <- fitYield u
@@ -32,7 +32,7 @@ useBOM_unit = "UTF-16: No byte order mark" <?> (go unit_be <|> go unit_le) where
       then return $ fitYield u
       else empty
 
-utf16_char :: Phase p Word16 o Char
+utf16_char :: Monoid p => Phase p Word16 o Char
 utf16_char = do
   hs <- fromIntegral <$> get :: Phase p Word16 o Int
   case () of
@@ -43,22 +43,26 @@ utf16_char = do
        return $ toEnum $ 0x010000 + 0x0400 * (hs - 0xD800) + (ls - 0xDC00)
      | otherwise -> fail "UTF-16: Invalid high surrogate"
 
-mkStream :: Phase p i a a -> Phase p i a ()
+mkStream :: Monoid p => Phase p i a a -> Phase p i a ()
 mkStream u = go where
   go = ((u >>= yield) >> go) <|> return ()
 
-utf16_word16_stream :: Phase p Word16 Char ()
+utf16_word16_stream :: Monoid p => Phase p Word16 Char ()
 utf16_word16_stream = mkStream utf16_char
 
-utf16_stream_useBOM :: Phase p Word8 Char ()
+utf16_stream_useBOM :: Monoid p => Phase p Word8 Char ()
 utf16_stream_useBOM = do
-  unit <- useBOM_unit :: Phase p Word8 Char (Phase p Word8 Word16 Word16)
+  unit <- useBOM_unit :: Monoid p =>
+    Phase p Word8 Char (Phase p Word8 Word16 Word16)
   mkStream unit >># utf16_word16_stream
 
+utf16_stream_le :: Monoid p => Phase p Word8 Char ()
 utf16_stream_le = mkStream unit_le >># utf16_word16_stream
 
+utf16_stream_be :: Monoid p => Phase p Word8 Char ()
 utf16_stream_be = mkStream unit_be >># utf16_word16_stream
 
+utf16_stream_unknown :: Monoid p => Phase p Word8 Char ()
 utf16_stream_unknown = flip (<|>) (return ()) $ do
   unit <- return unit_le <|> return unit_be
   h <- fitYield unit

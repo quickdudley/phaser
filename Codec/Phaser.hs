@@ -9,7 +9,7 @@ module Codec.Phaser (
   Automaton,
   Position(..),
   (>>#),
-  (>#>),
+--  (>#>),
   (<?>),
   ($#$),
   parse,

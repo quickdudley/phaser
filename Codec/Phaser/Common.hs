@@ -63,6 +63,7 @@ instance Read Position where
     parenthes a = surround a
       (many (satisfy isSpace) >> char '(')
       (char ')' >> many (satisfy isSpace))
+    go :: Int -> Phase () Char o Position
     go 0 = inner <|> parenthes (go 0)
     go _ = parenthes (go 0)
     inner = do
@@ -78,35 +79,41 @@ instance Read Position where
       c <- integer
       return (Position r c)
 
+instance Monoid Position where
+  mempty = Position 0 0
+  mappend (Position r1 c1) (Position r2 c2)
+    | r2 == 0   = Position r1 (c1 + c2)
+    | otherwise = Position (r1 + r2) c2
+
 -- | Consume one input, return it if it matches the predicate, otherwise fail.
-satisfy :: (i -> Bool) -> Phase p i o i
+satisfy :: (Monoid p) => (i -> Bool) -> Phase p i o i
 satisfy p = get >>= \c -> if p c then return c else empty
 
 -- | Consume one input, if it's equal to the parameter then return it, otherwise
 -- fail.
-match :: (Eq i) => i -> Phase p i o i
+match :: (Eq i, Monoid p) => i -> Phase p i o i
 match t = satisfy (== t)
 
 -- | 'match' specialized to 'Char'
-char :: Char -> Phase p Char o Char
+char :: (Monoid p) => Char -> Phase p Char o Char
 char = match
 
 -- | Case insensitive version of 'char'
-iChar :: Char -> Phase p Char o Char
+iChar :: (Monoid p) => Char -> Phase p Char o Char
 iChar t = satisfy (\i -> toLower t == toLower i)
 
 -- | Match a list of input values
-string :: Eq i => [i] -> Phase p i o [i]
+string :: (Eq i, Monoid p) => [i] -> Phase p i o [i]
 string t = go t where
   go [] = return t
   go (a:r) = get >>= \c -> if c == a then go r else empty
 
 -- | Match a string (case insensitive)
-iString :: String -> Phase p Char o String
+iString :: (Monoid p) => String -> Phase p Char o String
 iString = mapM iChar
 
 -- | Parse a standard positive base 10 integer
-positiveIntegerDecimal :: Num a => Phase p Char o a
+positiveIntegerDecimal :: (Num a, Monoid p) => Phase p Char o a
 positiveIntegerDecimal = go 0 where
   go acc = do
     d <- fmap (fromIntegral . digitToInt) $ satisfy isDigit
@@ -114,12 +121,12 @@ positiveIntegerDecimal = go 0 where
     acc' `seq` go acc' <|> return acc'
 
 -- | Parse a standard base 10 integer
-integerDecimal :: Num a => Phase p Char o a
+integerDecimal :: (Num a, Monoid p) => Phase p Char o a
 integerDecimal = (pure id <|> (char '-' *> munch isSpace *> pure negate)) <*>
   positiveIntegerDecimal
 
 -- | Take some hexadecimal digits and parse a number from hexadecimal
-directHex :: Num a => Phase p Char o a
+directHex :: (Num a, Monoid p) => Phase p Char o a
 directHex = go 0 where
   go acc = do
     d <- fmap (fromIntegral . digitToInt) $ satisfy isHexDigit
@@ -127,20 +134,20 @@ directHex = go 0 where
     acc' `seq` go acc' <|> return acc'
 
 -- | Parse a hexadecimal number prefixed with "Ox"
-hex :: Num a => Phase p Char o a
+hex :: (Num a, Monoid p) => Phase p Char o a
 hex = string "0x" >> directHex
 
 -- | Parse a positive integer from either decimal or hexadecimal format
-positiveInteger :: Num a => Phase p Char o a
+positiveInteger :: (Num a, Monoid p) => Phase p Char o a
 positiveInteger = positiveIntegerDecimal <|> hex
 
 -- | Parse a number either from decimal digits or from hexadecimal prefixed with
 -- "0x"
-integer :: Num a => Phase p Char o a
+integer :: (Num a, Monoid p) => Phase p Char o a
 integer = integerDecimal <|> hex
 
 -- | Parse a number from decimal digits and "."
-decimal :: Fractional a => Phase p Char o a
+decimal :: (Fractional a, Monoid p) => Phase p Char o a
 decimal = do
   w <- integerDecimal
   (match '.' >> go True 0.1 w) <|> return w
@@ -157,12 +164,12 @@ decimal = do
 -- | Move the position counter one character to the right
 countChar :: Phase Position i o ()
 {-# INLINE countChar #-}
-countChar = count (\(Position r c) -> Position r (c + 1))
+countChar = count (Position 0 1)
 
 -- | Move the position counter to the next line
 countLine :: Phase Position i o ()
 {-# INLINE countLine #-}
-countLine = count (\(Position r _) -> Position (r + 1) 1)
+countLine = count (Position 1 0)
 
 -- | Count the lines and characters from the input before yielding them again.
 -- If the phase pipeline does not include this or similar: parsing errors will
@@ -185,7 +192,7 @@ trackPosition = go where
     _ -> countChar >> go
 
 -- | Converts all line separators into Unix format.
-normalizeNewlines :: Phase p Char Char ()
+normalizeNewlines :: Monoid p => Phase p Char Char ()
 normalizeNewlines = go where
   go = flip (<|>) (return ()) $ get >>= \c -> case c of
     '\n' -> yield '\n' >> goN
@@ -211,12 +218,12 @@ parse = parse_ (Position 1 1)
 
 -- | sepBy p sep parses zero or more occurrences of p, separated by sep. Returns
 -- a list of values returned by p.
-sepBy :: Phase p i o a -> Phase p i o s -> Phase p i o [a]
+sepBy :: Monoid p => Phase p i o a -> Phase p i o s -> Phase p i o [a]
 sepBy p sep = sepBy1 p sep <|> return []
 
 -- | sepBy1 p sep parses one or more occurrences of p, separated by sep. Returns
 -- a list of values returned by p.
-sepBy1 :: Phase p i o a -> Phase p i o s -> Phase p i o [a]
+sepBy1 :: Monoid p => Phase p i o a -> Phase p i o s -> Phase p i o [a]
 sepBy1 p sep = ((:) <$> p <*> many (sep >> p))
 
 surround :: Phase p i o a -> Phase p i o b -> Phase p i o e -> Phase p i o a
@@ -225,7 +232,7 @@ surround m o c = (\_ r _ -> r) <$> o <*> m <*> c
 -- | Parses the first zero or more values satisfying the predicate. Always
 -- succeds, exactly once, having consumed all the characters Hence NOT the same
 -- as (many (satisfy p))
-munch :: (i -> Bool) -> Phase p i o [i]
+munch :: Monoid p => (i -> Bool) -> Phase p i o [i]
 munch p = go id where
   go acc = flip (<|>) (eof >> return (acc [])) $ do
     c <- get
@@ -236,7 +243,7 @@ munch p = go id where
 -- | Parses the first one or more values satisfying the predicate. Succeeds if
 -- at least one value matches, having consumed all the characters Hence NOT the
 -- same as (some (satisfy p))
-munch1 :: (i -> Bool) -> Phase p i o [i]
+munch1 :: Monoid p => (i -> Bool) -> Phase p i o [i]
 munch1 p = go1 where
   go1 = do
     c <- get
@@ -257,15 +264,16 @@ parseFile :: Phase Position Word8 o a -> FilePath ->
 parseFile = BP.parseFile_ (Position 1 1)
 
 -- | Decode bytes to characters using the Latin1 (ISO8859-1) encoding
-latin1 :: Phase p Word8 Char ()
+latin1 :: Monoid p => Phase p Word8 Char ()
 latin1 = go where
   go = flip (<|>) (return ()) $ 
     fmap (toEnum . fromIntegral) get >>= yield >> go
 
 -- | Decode bytes to characters using the ASCII encoding, aborting if
 -- any byte is outside the ASCII range.
-ascii :: Phase p Word8 Char ()
+ascii :: Monoid p => Phase p Word8 Char ()
 ascii = go where
   go = flip (<|>) (return ()) $ get >>= \c -> if c .&. 0x80 == 0
     then yield (toEnum $ fromIntegral c) >> go
     else fail "Byte out of ASCII range"
+

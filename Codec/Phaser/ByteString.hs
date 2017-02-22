@@ -23,13 +23,13 @@ import Codec.Phaser.Core
 
 -- | A 'Phase' which takes 'BS.ByteString's as input and yields their individual
 -- bytes.
-unpackBS :: Phase p BS.ByteString Word8 ()
+unpackBS :: (Monoid p) => Phase p BS.ByteString Word8 ()
 unpackBS = (go >> unpackBS) <|> return () where
   go = get >>= BS.foldr (\w r -> yield w >> r) (return ())
 
 -- | A 'Phase' which takes lazy 'BL.ByteString's as input and yields their
 -- individual bytes.
-unpackLBS :: Phase p BL.ByteString Word8 ()
+unpackLBS :: (Monoid p) => Phase p BL.ByteString Word8 ()
 unpackLBS = (go >> unpackLBS) <|> return () where
   go = get >>= BL.foldr (\w r -> yield w >> r) (return ())
 
@@ -38,7 +38,7 @@ unpackLBS = (go >> unpackLBS) <|> return () where
 -- characters are needed: a decoding phase such as
 -- 'Codec.Phaser.UTF8.utf8_stream' or 'latin1' may be used. Counter type
 -- agnostic version.
-parseFile_ :: p -> Phase p Word8 o a -> FilePath ->
+parseFile_ :: (Monoid p) => p -> Phase p Word8 o a -> FilePath ->
   IO (Either [(p,[String])] [a])
 parseFile_ p c n = do
   i <- BL.readFile n

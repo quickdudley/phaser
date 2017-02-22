@@ -21,7 +21,7 @@ import Codec.Phaser.Core
 
 -- | Consume a UTF-8 character from a stream of bytes and return it. Fail on
 -- invalid UTF-8.
-utf8_char :: Phase p Word8 o Char
+utf8_char :: (Monoid p) => Phase p Word8 o Char
 utf8_char = do
   c1 <- fmap fromIntegral get
   case () of
@@ -41,5 +41,6 @@ utf8_char = do
       else go (shiftL z 5) (shiftL (a .&. complement z) 6 .|. (c2 .&. 0x3F))
 
 -- | Consume any number of UTF-8 characters and yield them.
-utf8_stream :: Phase p Word8 Char ()
+utf8_stream :: (Monoid p) => Phase p Word8 Char ()
 utf8_stream = (utf8_char >>= yield >> utf8_stream) <|> return ()
+
