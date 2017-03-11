@@ -32,7 +32,8 @@ module Codec.Phaser.Core (
   parse1_,
   options,
   readCount,
-  outputs
+  outputs,
+  stream
  ) where
 
 import Control.Applicative
@@ -385,3 +386,35 @@ outputs = go where
     in (o, prune1 $ Count p r')
   go a = ([], a)
 
+stream :: (Monoid p, PhaserType s, Monad m) =>
+  p -> s p i o a -> m (Maybe [i]) -> ([o] -> m ()) ->
+  m (Either [(p,[String])] a)
+stream p0 a1 r w = go (toAutomaton a1) where
+  go a = do
+    let (o,a1) = outputs a
+    case o of
+      [] -> return ()
+      _ -> w o
+    i <- r
+    case i of
+      Nothing -> fin1 a1
+      Just i' -> go $ run a1 i'
+  fin1 = fin2 . fst . clean
+  clean r@(Result _) = (r,True)
+  clean (Count p r) = let
+    (r',c) = clean r
+    in (Count p r', c)
+  clean (Yield o r) = let
+    (r',c) = clean r
+    in (Yield o r', c)
+  clean (a :+++ b) = case (clean a, clean b) of
+    (a'@(_,True),_) -> a'
+    (_,b'@(_,True)) -> b'
+    ((a',False),(b',False)) -> (prune1 (a' :+++ b'), False)
+  clean a = (a,False)
+  fin2 a = do
+    let (o,a1) = outputs a
+    w o
+    return $ case extract p0 a1 of
+      Right (r:_) -> Right r
+      Left e -> Left e 

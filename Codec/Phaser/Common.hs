@@ -9,6 +9,7 @@ Common functions which do not need to be in 'Phaser.Core', mostly for using
 -}
 module Codec.Phaser.Common (
   Position(..),
+  PhaserType(..),
   satisfy,
   match,
   char,
@@ -259,7 +260,7 @@ munch1 p = go1 where
 -- | Run a parser on input from a file. Input is provided as bytes, if
 -- characters are needed: a decoding phase such as
 -- 'Codec.Phaser.UTF8.utf8_stream' or 'latin1' may be used
-parseFile :: Phase Position Word8 o a -> FilePath ->
+parseFile :: (PhaserType s) => s Position Word8 o a -> FilePath ->
   IO (Either [(Position,[String])] [a])
 parseFile = BP.parseFile_ (Position 1 1)
 

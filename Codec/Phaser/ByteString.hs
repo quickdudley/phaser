@@ -38,7 +38,7 @@ unpackLBS = (go >> unpackLBS) <|> return () where
 -- characters are needed: a decoding phase such as
 -- 'Codec.Phaser.UTF8.utf8_stream' or 'latin1' may be used. Counter type
 -- agnostic version.
-parseFile_ :: (Monoid p) => p -> Phase p Word8 o a -> FilePath ->
+parseFile_ :: (Monoid p,PhaserType s) => p -> s p Word8 o a -> FilePath ->
   IO (Either [(p,[String])] [a])
 parseFile_ p c n = do
   i <- BL.readFile n
