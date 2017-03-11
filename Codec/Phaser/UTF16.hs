@@ -54,12 +54,12 @@ utf16_stream_useBOM :: Monoid p => Phase p Word8 Char ()
 utf16_stream_useBOM = do
   unit <- useBOM_unit :: Monoid p =>
     Phase p Word8 Char (Phase p Word8 Word16 Word16)
-  mkStream unit >># utf16_word16_stream
+  toPhase $ mkStream unit >># utf16_word16_stream
 
-utf16_stream_le :: Monoid p => Phase p Word8 Char ()
+utf16_stream_le :: Monoid p => Automaton p Word8 Char ()
 utf16_stream_le = mkStream unit_le >># utf16_word16_stream
 
-utf16_stream_be :: Monoid p => Phase p Word8 Char ()
+utf16_stream_be :: Monoid p => Automaton p Word8 Char ()
 utf16_stream_be = mkStream unit_be >># utf16_word16_stream
 
 utf16_stream_unknown :: Monoid p => Phase p Word8 Char ()
@@ -67,7 +67,7 @@ utf16_stream_unknown = flip (<|>) (return ()) $ do
   unit <- return unit_le <|> return unit_be
   h <- fitYield unit
   case h of
-    0xFEFF -> mkStream (fitYield unit) >># utf16_word16_stream
+    0xFEFF -> toPhase $ mkStream (fitYield unit) >># utf16_word16_stream
     0xFFFE -> fail "Reversed byte order mark"
-    _ -> mkStream (fitYield unit) >># (put1 h >> utf16_word16_stream)
+    _ -> toPhase $ mkStream (fitYield unit) >># (put1 h >> utf16_word16_stream)
 

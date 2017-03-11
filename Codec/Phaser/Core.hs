@@ -10,8 +10,6 @@ Core functions and types.
 module Codec.Phaser.Core (
   Automaton,
   Phase,
-  Link(..),
-  Source(..),
   get,
   put,
   put1,
@@ -19,12 +17,11 @@ module Codec.Phaser.Core (
   yield,
   eof,
   neof,
-  (<??>),
   (<?>),
+  (>>#),
 --  (>#>),
   starve,
-  toAutomaton,
-  fromAutomaton,
+  PhaserType(..),
   fitYield,
   beforeStep,
   step,
@@ -63,15 +60,13 @@ newtype Phase p i o a =
     forall b . (a -> Automaton p i o b) -> Automaton p i o b)
 
 infixr 4 >>#
--- | Class for types which consume and produce incremental input and output.
-class Link s d l | s d -> l where
-  -- | Take the incremental output of the first argument and use it as input
-  -- for the second argument. Discard the final output of the first argument.
-  (>>#) :: (Monoid p) => s p b c x -> d p c t a -> l p b t a
-
 infixl 5 $#$
-class Source s where
-  -- | Apply a function to each value of the incremental output
+-- | Class for types which consume and produce incremental input and output.
+class PhaserType s where
+  toAutomaton :: (Monoid p) => s p i o a -> Automaton p i o a
+  fromAutomaton :: (Monoid p) => Automaton p i o a -> s p i o a
+  toPhase :: (Monoid p) => s p i o a -> Phase p i o a
+  fromPhase :: (Monoid p) => Phase p i o a -> s p i o a
   ($#$) :: (Monoid p) => s p b c x -> (c -> t) -> s p b t x
 
 instance Functor (Phase p i o) where
@@ -113,50 +108,32 @@ instance Functor (Automaton p i o) where
     go (Yield o r) = Yield o (go r)
     go (Count p r) = Count p (go r)
 
-instance Link Phase Automaton Phase where
-  (>>#) = link_p_a
+instance PhaserType Phase where
+  toAutomaton (Phase c) = c id Result
+  fromAutomaton a = Phase (\e' c -> let
+    continue (Result r) = c r
+    continue (Ready n e) = Ready (fmap continue n) (e' . e)
+    continue (Failed e) = Failed (e' . e)
+    continue (l :+++ r) = prune1 (continue l :+++ continue r)
+    continue (Count p r) = prune1 (Count p (continue r))
+    continue (Yield o r) = prune1 (Yield o (continue r))
+    in continue a
+   )
+  toPhase = id
+  fromPhase = id
+  ($#$) = source_p
 
-link_p_a :: (Monoid p) => Phase p i t z -> Automaton p t o a -> Phase p i o a
-{-# INLINE [1] link_p_a #-}
-link_p_a s d = fromAutomaton (toAutomaton s >># d)
+instance PhaserType Automaton where
+  toAutomaton = id
+  fromAutomaton = id
+  toPhase = fromAutomaton
+  fromPhase = toAutomaton
+  ($#$) = source_a
 
-instance Link Phase Phase Phase where
-  (>>#) = link_p_p
-
-link_p_p :: (Monoid p) => Phase p i t z -> Phase p t o a -> Phase p i o a
-{-# INLINE [1] link_p_p #-}
-link_p_p s d = s >># toAutomaton d
-
-{-# RULES
-">>#/>>#/1.1"
-  forall (a :: Phase p b c x) (b :: Phase p c t r) (c :: Phase p t g o) .
-    link_p_p a (link_p_p b c) = link_p_a a (toAutomaton b >># toAutomaton c)
-">>#/>>#/1.2"
-  forall (a :: Phase p b c x) (b :: Phase p c t r) (c :: Automaton p t g o) .
-    link_p_p a (link_p_a b c) = link_p_a a (toAutomaton b >># c)
-">>#/>>#/2.1"
-  forall
-    (a :: Phase p b c x)
-    (b :: Phase p c t y)
-    (c :: Phase p t o z) .
-     link_p_p (link_p_p a b) c = link_p_p a (link_p_p b c)
-">>#/>>#/2.2"
-  forall
-    (a :: Phase p b c x)
-    (b :: Phase p c t y)
-    (c :: Automaton p t o z) .
-     link_p_a (link_p_p a b) c = link_p_p a (link_p_a b c)
-">>#/>>#/2.3"
-  forall
-    (a :: Phase p b c x)
-    (b :: Automaton p c t y)
-    (c :: Automaton p t o z) .
-     link_p_a (link_p_a a b) c = link_p_a a (b >># c)
- #-}
-
-instance Link Automaton Automaton Automaton where
-  {-# INLINE [2] (>>#) #-}
-  (>>#) = (!!!) where
+-- | Take the incremental output of the first argument and use it as input
+-- for the second argument. Discard the final output of the first argument.
+(>>#) :: (Monoid p, PhaserType s, PhaserType d) => s p b c x -> d p c t a -> Automaton p b t a
+a >># b = toAutomaton a !!! toAutomaton b where
     Yield o r !!! d = case beforeStep d of
       Left e -> e
       Right d' -> let s = step d' o in s `seq` (r !!! s)
@@ -169,9 +146,6 @@ instance Link Automaton Automaton Automaton where
     (a :+++ b) !!! d = prune1 ((a !!! d) :+++ (b !!! d))
     Ready n e !!! d = Ready (\t -> n t !!! d) e
 
-instance Source Automaton where
-  ($#$) = source_a
-
 source_a :: Automaton p i c a -> (c -> t) -> Automaton p i t a
 {-# INLINE[1] source_a #-}
 source_a a f = go a where
@@ -182,9 +156,6 @@ source_a a f = go a where
   go (Yield o r) = Yield (f o) (go r)
   go (Count p r) = Count p (go r)
 
-instance Source Phase where
-  ($#$) = source_p
-
 {-# INLINE[1] source_p #-}
 source_p p f = fromAutomaton $ source_a (toAutomaton p) f
 
@@ -192,19 +163,7 @@ source_p p f = fromAutomaton $ source_a (toAutomaton p) f
 "$#$/$#$/1" forall a f1 f2 . source_a (source_a a f1) f2 = source_a a (f2 . f1)
 "$#$/$#$/1" forall a f1 f2 . source_p (source_p a f1) f2 = source_p a (f2 . f1)
 "toAutomaton/$#$" forall p f . toAutomaton (source_p p f) = source_a (toAutomaton p) f
-"toAutomaton/fromAutomaton" forall a . toAutomaton (fromAutomaton a) = a
-"fromAutomaton/toAutomaton" forall a . fromAutomaton (toAutomaton a) = a
  #-}
-
--- | When the right argument fails: apply the left argument to the list of
--- error messages. Depreciated because it doesn't work correctly for all
--- arguments and fixing it would break the 'Alternative' and 'MonadPlus'
--- instances.
-infixr 1 <??>
-{-# WARNING (<??>) "<??> is faulty and will be removed in future versions. \
-  \Please use <?> instead" #-}
-(<??>) :: ([String] -> [String]) -> Phase p i o a -> Phase p i o a
-f <??> Phase s = Phase (\e -> s (f . e))
 
 -- | If parsing fails in the right argument: prepend the left argument to the
 -- errors
@@ -310,28 +269,9 @@ starve (Count p r) = prune1 (Count p (starve r))
 "starve/starve" forall a . starve (starve a) = starve a
   #-}
 
--- | Convert a 'Phase' to an 'Automaton'. Subject to fusion.
-toAutomaton :: Phase p i o a -> Automaton p i o a
-{-# INLINE[2] toAutomaton #-}
-toAutomaton (Phase c) = c id Result
-
--- | Convert an 'Automaton' back to a 'Phase' (somewhat inefficient). Subject
--- to fusion.
-fromAutomaton :: (Monoid p) => Automaton p i o a -> Phase p i o a
-{-# INLINE[2] fromAutomaton #-}
-fromAutomaton a = Phase (\e' c -> let
-  continue (Result r) = c r
-  continue (Ready n e) = Ready (fmap continue n) (e' . e)
-  continue (Failed e) = Failed (e' . e)
-  continue (l :+++ r) = prune1 (continue l :+++ continue r)
-  continue (Count p r) = prune1 (Count p (continue r))
-  continue (Yield o r) = prune1 (Yield o (continue r))
-  in continue a
- )
-
 -- | Take a 'Phase' or 'Automaton' which doesn't 'yield' anything and allow
 -- it to be used in a chain containing yield statements
-fitYield :: Source s => s p i Void a -> s p i o a
+fitYield :: PhaserType s => s p i Void a -> s p i o a
 fitYield = unsafeCoerce
 
 -- | Optional pre-processing of an automaton before passing it more input.
@@ -407,11 +347,11 @@ run = go where
     Right a' -> go (step a' i) r
 
 -- | Use a 'Phase' value similarly to a parser.
-parse_ :: (Monoid p) => p -> Phase p i o a -> [i] -> Either [(p,[String])] [a]
+parse_ :: (Monoid p, PhaserType s) => p -> s p i o a -> [i] -> Either [(p,[String])] [a]
 parse_ p a i = extract p $ run (toAutomaton a) i
 
 -- | Use a 'Phase' as a parser, but consuming a single input instead of a list
-parse1_ :: (Monoid p) => p -> Phase p i o a -> i -> Either [(p,[String])] [a]
+parse1_ :: (Monoid p, PhaserType s) => p -> s p i o a -> i -> Either [(p,[String])] [a]
 parse1_ p a i = extract p $ step (toAutomaton a) i
 
 -- | Decompose an 'Automaton' into its component options.
