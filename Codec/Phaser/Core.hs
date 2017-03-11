@@ -19,7 +19,7 @@ module Codec.Phaser.Core (
   neof,
   (<?>),
   (>>#),
---  (>#>),
+  (>#>),
   starve,
   PhaserType(..),
   fitYield,
@@ -171,10 +171,11 @@ source_p p f = fromAutomaton $ source_a (toAutomaton p) f
 infixr 1 <?>
 e <?> Phase s = Phase (\e1 -> s ((e :) . e1))
 
-{-
--- | Change the counter type of a Phase object.
+
+-- | Change the counter type of a Phaser object.
 infixr 1 >#>
-(>#>) :: ((p0 -> p0) -> p -> p) -> Phase p0 i o a -> Phase p i o a
+(>#>) :: (PhaserType s, Monoid p0, Monoid p) =>
+  (p0 -> p) -> s p0 i o a -> s p i o a
 {-# INLINABLE [1] (>#>) #-}
 f >#> p = fromAutomaton $ go $ toAutomaton p where
   go (Result a) = Result a
@@ -183,12 +184,7 @@ f >#> p = fromAutomaton $ go $ toAutomaton p where
   go (a :+++ b) = go a :+++ go b
   go (Yield t r) = Yield t (go r)
   go (Count p r) = Count (f p) (go r)
--}
-{-
-{-# RULES
-">#>/>#>" forall pt2 pt1 a . pt2 >#> (pt1 >#> a) = (pt2 . pt1) >#> a
-  #-}
--}
+
 -- | Return one item of the input.
 get :: Phase p i o i
 get = Phase (flip Ready)
@@ -327,17 +323,13 @@ extract p' a = case go p' a of
     p' = mappend p i
     in p' `seq` go p' r
 
--- | Create a 'ReadS' like value from an 'Automaton'. If the Automaton's input
+-- | Create a 'ReadS' like value from a Phaser type. If the input
 -- type is 'Char', the result will be 'ReadS'
-toReadS :: Automaton p i o a -> [i] -> [(a,[i])]
-toReadS a i = go a i [] where
-  go (Result r) i' = ((r,i'):)
-  go (Ready _ _) [] = id
-  go (Ready n _) (t:r) = go (n t) r
-  go (Failed _) _ = id
-  go (a :+++ b) i' = go a i' . go b i'
-  go (Yield _ r) i' = go r i'
-  go (Count _ r) i' = go r i'
+toReadS :: (PhaserType s, Monoid p) =>
+  s p i o a -> [i] -> [(a,[i])]
+toReadS a i = case parse_ mempty ((,) <$> toPhase a <*> many get) i of
+  Right r -> r
+  Left _ -> []
 
 -- | Pass a list of input values to an 'Automaton'
 run :: (Monoid p) => Automaton p i o a -> [i] -> Automaton p i o a
@@ -386,6 +378,11 @@ outputs = go where
     in (o, prune1 $ Count p r')
   go a = ([], a)
 
+-- | Run a Phaser object on input values produced by a monadic action
+-- and passing the output values to another monadic function. The input action
+-- should return 'Nothing' when there is no more input. If there is more than
+-- one final result: the left one is chosen, and all the outputs leading to it
+-- are also output.
 stream :: (Monoid p, PhaserType s, Monad m) =>
   p -> s p i o a -> m (Maybe [i]) -> ([o] -> m ()) ->
   m (Either [(p,[String])] a)
