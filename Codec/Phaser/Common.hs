@@ -214,7 +214,7 @@ normalizeNewlines = go where
 -- Since the characters may be counted nondeterministically: if multiple errors
 -- are returned the reported error position may be different for each error
 -- report.
-parse :: Phase Position i o a -> [i] -> Either [(Position,[String])] [a]
+parse :: (PhaserType s) => s Position i o a -> [i] -> Either [(Position,[String])] [a]
 parse = parse_ (Position 1 1)
 
 -- | sepBy p sep parses zero or more occurrences of p, separated by sep. Returns
