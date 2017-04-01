@@ -149,8 +149,12 @@ integer = integerDecimal <|> hex
 
 -- | Parse a number from decimal digits and "."
 decimal :: (Fractional a, Monoid p) => Phase p Char o a
-decimal = do
-  w <- integerDecimal
+decimal = (pure id <|> (negate <$ char '-' <* munch isSpace)) <*>
+  positiveDecimal
+
+positiveDecimal :: (Fractional a, Monoid p) => Phase p Char o a
+positiveDecimal = do
+  w <- positiveIntegerDecimal
   (match '.' >> go True 0.1 w) <|> return w
  where
   go i s acc = do
