@@ -9,7 +9,7 @@ module Codec.Phaser (
   Automaton,
   Position(..),
   (>>#),
---  (>#>),
+  (>#>),
   (<?>),
   ($#$),
   parse,
@@ -30,9 +30,11 @@ module Codec.Phaser (
   iString,
   integer,
   decimal,
+  scientificNotation,
   sepBy,
   munch,
-  munch1
+  munch1,
+  trackPosition
  ) where
 
 import Codec.Phaser.Core

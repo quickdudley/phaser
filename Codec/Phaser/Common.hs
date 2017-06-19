@@ -19,6 +19,7 @@ module Codec.Phaser.Common (
   integerDecimal,
   positiveIntegerDecimal,
   decimal,
+  scientificNotation,
   directHex,
   hex,
   positiveInteger,
@@ -165,6 +166,13 @@ positiveDecimal = do
     d <- p $ fmap (fromIntegral . digitToInt) $ satisfy isDigit
     let acc' = acc + d * s
     acc' `seq` go False (s / 10) acc' <|> return acc'
+
+scientificNotation :: (Fractional a, Monoid p) => Phase p Char o a
+scientificNotation = flip id <$> positiveDecimal <*> (pure id <|> (
+  (\o p n -> o n (10 ^ p)) <$> (iChar 'e' *>
+    (pure (*) <|> ((*) <$ char '+') <|> ((/) <$ char '-'))) <*>
+    positiveIntegerDecimal
+ ))
 
 -- | Move the position counter one character to the right
 countChar :: Phase Position i o ()
