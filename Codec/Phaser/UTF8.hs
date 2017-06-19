@@ -8,7 +8,8 @@ Maintainer: quick.dudley@gmail.com
 -}
 module Codec.Phaser.UTF8 (
   utf8_char,
-  utf8_stream
+  utf8_stream,
+  utf8_encode
  ) where
 
 import Data.Bits
@@ -44,3 +45,18 @@ utf8_char = do
 utf8_stream :: (Monoid p) => Phase p Word8 Char ()
 utf8_stream = (utf8_char >>= yield >> utf8_stream) <|> return ()
 
+-- | Consume any number of Characters and yield them as UTF-8 bytes
+utf8_encode :: (Monoid p) => Phase p Char Word8 ()
+utf8_encode = (fromEnum <$> get) >>= \c -> if c > 0 && c < 0x40
+  then yield (fromIntegral c) >> nxt
+  else go 0xC0 0x20 c []
+ where
+  nxt = (utf8_encode <|> return ())
+  go pfb fzb c' o = let
+    l = shiftR c' 6
+    m = fromIntegral (c' .&. 0x3F)
+    m' = m .|. 0x80
+    in if l < fromIntegral fzb
+      then foldr (\b r -> yield b >> r) nxt $
+        (pfb .|. fromIntegral l) : m' : o
+      else go (pfb .|. fzb) (shiftR fzb 1) l (m' : o)
