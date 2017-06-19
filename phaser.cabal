@@ -69,7 +69,10 @@ library
   other-extensions:    RankNTypes, MultiParamTypeClasses, FunctionalDependencies
   
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.7 && <4.10, text >=1.2 && <1.3, bytestring >=0.10 && <0.11
+  build-depends:       base >=4.7 && <4.10,
+    text >=1.2 && <1.3,
+    bytestring >=0.10 && <0.11,
+    containers
   
   -- Directories containing source files.
   -- hs-source-dirs:      

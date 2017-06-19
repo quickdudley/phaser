@@ -7,9 +7,14 @@ Maintainer: quick.dudley@gmail.com
 Common functions which do not need to be in 'Phaser.Core', mostly for using
 'Phase's and 'Automaton's as parsers.
 -}
+{-# LANGUAGE MultiParamTypeClasses,FlexibleContexts #-}
 module Codec.Phaser.Common (
   Position(..),
   PhaserType(..),
+  Standardized(..),
+  Trie,
+  newTrie,
+  fromTrie,
   satisfy,
   match,
   char,
@@ -39,12 +44,21 @@ module Codec.Phaser.Common (
 
 import Data.Bits
 import Data.Char
+import Data.Int
 import Data.Word
+import Data.Ratio
 import Control.Monad
 import Control.Applicative
+import qualified Data.Map as M
 
 import Codec.Phaser.Core
 import qualified Codec.Phaser.ByteString as BP
+
+-- | Class for types which have standardized or otherwise unambiguous
+-- representations. Implementations of 'regular' may be more permissive than
+-- the corresponding 'Read' instance (if any).
+class Standardized r a where
+  regular :: Monoid p => Phase p r o a
 
 -- | A data type for describing a position in a text file. Constructor arguments
 -- are row number and column number.
@@ -86,6 +100,15 @@ instance Monoid Position where
   mappend (Position r1 c1) (Position r2 c2)
     | r2 == 0   = Position r1 (c1 + c2)
     | otherwise = Position (r1 + r2) c2
+
+-- | Tries in this module can be used for creating more efficient parsers
+-- when several of the recognized strings begin with the same few characters
+data Trie c a = Trie [a] (M.Map c (Trie c a))
+
+instance Ord c => Monoid (Trie c a) where
+  mempty = Trie [] M.empty
+  mappend ~(Trie l1 m1) ~(Trie l2 m2) =
+    Trie (l1 ++ l2) (M.unionWith mappend m1 m2)
 
 -- | Consume one input, return it if it matches the predicate, otherwise fail.
 satisfy :: (Monoid p) => (i -> Bool) -> Phase p i o i
@@ -148,11 +171,12 @@ positiveInteger = positiveIntegerDecimal <|> hex
 integer :: (Num a, Monoid p) => Phase p Char o a
 integer = integerDecimal <|> hex
 
--- | Parse a number from decimal digits and "."
+-- | Parse a number from decimal digits, "-", and "."
 decimal :: (Fractional a, Monoid p) => Phase p Char o a
 decimal = (pure id <|> (negate <$ char '-' <* munch isSpace)) <*>
   positiveDecimal
 
+-- | Parse a positive number from decimal digits and "."
 positiveDecimal :: (Fractional a, Monoid p) => Phase p Char o a
 positiveDecimal = do
   w <- positiveIntegerDecimal
@@ -167,6 +191,7 @@ positiveDecimal = do
     let acc' = acc + d * s
     acc' `seq` go False (s / 10) acc' <|> return acc'
 
+-- | Parse a number from standard decimal format or from scientific notation.
 scientificNotation :: (Fractional a, Monoid p) => Phase p Char o a
 scientificNotation = flip id <$> positiveDecimal <*> (pure id <|> (
   (\o p n -> o n (10 ^ p)) <$> (iChar 'e' *>
@@ -290,3 +315,71 @@ ascii = go where
     then yield (toEnum $ fromIntegral c) >> go
     else fail "Byte out of ASCII range"
 
+instance Standardized Char Int where
+  regular = integer
+
+instance Standardized Char Integer where
+  regular = integer
+
+instance Standardized Char Word where
+  regular = positiveInteger
+
+instance Standardized Char Word8 where
+  regular = positiveInteger
+
+instance Standardized Char Word16 where
+  regular = positiveInteger
+
+instance Standardized Char Word32 where
+  regular = positiveInteger
+
+instance Standardized Char Word64 where
+  regular = positiveInteger
+
+instance Standardized Char Int8 where
+  regular = integer
+
+instance Standardized Char Int16 where
+  regular = integer
+
+instance Standardized Char Int32 where
+  regular = integer
+
+instance Standardized Char Int64 where
+  regular = integer
+
+instance Standardized Char Float where
+  regular = scientificNotation
+
+instance Standardized Char Double where
+  regular = scientificNotation
+
+instance (Integral a,Standardized Char a) => Standardized Char (Ratio a) where
+  regular = scientificNotation <|> ((%) <$> regular <*> (
+    munch isSpace *> char '%' *> munch isSpace *> regular
+   ))
+
+instance Standardized Char Bool where
+  regular = (False <$ (void (char '0') <|> void (iString "false"))) ||
+    (True <$ (void (char '1') <|> void (iString "true")))
+
+-- | Create a trie which maps a single string to an object. Analogous to
+-- 'M.singleton'.
+newTrie :: Ord c => [c] -> a -> Trie c a
+newTrie l0 a = go l0 where
+  go [] = Trie [a] M.empty
+  go (c:r) = Trie [] $ M.singleton c $ go r
+
+-- | Create a trie from a list of strings and corresponding objects. Analogous
+-- to 'M.fromList'
+listToTrie :: Ord c => [([c],a)] -> Trie c a
+listToTrie = mconcat . map (uncurry newTrie)
+
+-- | Create a 'Phase' or 'Automaton' from a 'Trie'
+fromTrie :: (Monoid p, PhaserType s, Ord c) => Trie c a -> s p c o a
+fromTrie = fromPhase . go where
+  go ~(Trie l m) = let
+    n = get >>= \c -> case M.lookup c m of
+      Nothing -> empty
+      Just r -> go r
+    in foldr (<|>) n (map pure l)
