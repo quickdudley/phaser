@@ -360,7 +360,7 @@ instance (Integral a,Standardized Char a) => Standardized Char (Ratio a) where
    ))
 
 instance Standardized Char Bool where
-  regular = (False <$ (void (char '0') <|> void (iString "false"))) ||
+  regular = (False <$ (void (char '0') <|> void (iString "false"))) <|>
     (True <$ (void (char '1') <|> void (iString "true")))
 
 -- | Create a trie which maps a single string to an object. Analogous to

@@ -135,6 +135,7 @@ instance PhaserType Automaton where
 -- for the second argument. Discard the final output of the first argument.
 (>>#) :: (Monoid p, PhaserType s, PhaserType d) => s p b c x -> d p c t a -> Automaton p b t a
 a >># b = toAutomaton a !!! toAutomaton b where
+    s@(Yield _ _) !!! Yield o r = prune1 (Yield o (s !!! r))
     Yield o r !!! d = case beforeStep d of
       Left e -> e
       Right d' -> let s = step d' o in s `seq` (r !!! s)
