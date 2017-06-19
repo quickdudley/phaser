@@ -100,18 +100,18 @@ utf16_stream_unknown = flip (<|>) (return ()) $ do
 utf16_encode_stream_word16 :: Monoid p => Phase p Char Word16 ()
 utf16_encode_stream_word16 = mkEncodeStream utf16_encode_char
 
-utf16_encode_stream_be_nobom :: (Monoid p,PhaserType s) => s p Char Word8 ()
-utf16_encode_stream_be_nobom = fromAutomaton $
+utf16_encode_stream_be_nobom :: Monoid p => Automaton p Char Word8 ()
+utf16_encode_stream_be_nobom =
   utf16_encode_stream_word16 >># mkEncodeStream encode_unit_be
 
-utf16_encode_stream_le_nobom :: (Monoid p,PhaserType s) => s p Char Word8 ()
-utf16_encode_stream_le_nobom = fromAutomaton $
+utf16_encode_stream_le_nobom :: Monoid p => Automaton p Char Word8 ()
+utf16_encode_stream_le_nobom =
   utf16_encode_stream_word16 >># mkEncodeStream encode_unit_le
 
-utf16_encode_stream_be :: (Monoid p, PhaserType s) => s p Char Word8 ()
-utf16_encode_stream_be = fromAutomaton $
+utf16_encode_stream_be :: Monoid p => Automaton p Char Word8 ()
+utf16_encode_stream_be =
   (yield 0xFEFF >> utf16_encode_stream_word16) >># mkEncodeStream encode_unit_be
 
-utf16_encode_stream_le :: (Monoid p, PhaserType s) => s p Char Word8 ()
-utf16_encode_stream_le = fromAutomaton $
+utf16_encode_stream_le :: Monoid p => Automaton p Char Word8 ()
+utf16_encode_stream_le =
   (yield 0xFEFF >> utf16_encode_stream_word16) >># mkEncodeStream encode_unit_le
