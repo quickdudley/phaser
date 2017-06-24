@@ -180,7 +180,8 @@ infixr 1 <?>
 e <?> Phase s = Phase (\e1 -> s ((e :) . e1))
 
 -- | Change the counter type of a Phaser object. May cause 'getCount' to
--- behave differently from expected.
+-- behave differently from expected: counter increments inside the right hand
+-- argument are visible outside but not vice versa.
 infixr 1 >#>
 (>#>) :: forall s p0 p i o a . (PhaserType s, Monoid p0, Monoid p) =>
   (p0 -> p) -> s p0 i o a -> s p i o a
@@ -321,8 +322,13 @@ beforeStep' = fmap (\(s,a,b) -> if s then a else b) . go where
   go (Result _) = Left (Failed id)
   go r@(Ready _ _) = Right (True,r,r)
   go (Failed e) = Left (Failed e)
+  -- When we reach 'GetCount': we don't know whether or not it's hiding a 'Ready'.
+  -- It can't be safely removed, and unlike finding 'Ready' it doesn't
+  -- indicate that errors be safely removed.
   go (a :+++ b) = case (go a, go b) of
     (Left a', Left b') -> Left (prune1 (a' :+++ b'))
+    -- You could do without 'unsafeCoerce' here if you used ImpredicativeTypes:
+    -- but it wouldn't be worth it.
     (Right (sa,a1,a2), Left b') -> Right (sa,a1,prune1 (a2 :+++ unsafeCoerce b'))
     (Left a', Right (sb,b1,b2)) -> Right (sb,b1,prune1 (unsafeCoerce a' :+++ b2))
     (Right (sa,a1,a2), Right (sb,b1,b2)) ->
@@ -418,8 +424,8 @@ options = ($ []) . go where
   go (Count p r) = (fmap . fmap) (Count p) $ go r
   go a = (a :)
 
--- | Separate unconditional counter modifiers from an automaton. Will cause
--- unexpected results when used with 'getCount'
+-- | Separate unconditional counter modifiers from an automaton. The removal
+-- is visible to 'getCount'
 readCount :: (Monoid p) => Automaton p i o a -> (p, Automaton p i o a)
 readCount = go where
   go (Count p0 r) = let
@@ -460,19 +466,21 @@ stream p0 a1 r w = go (toAutomaton a1) where
     case i of
       Nothing -> fin1 a1
       Just i' -> go $ run a1 i'
-  fin1 = fin2 . fst . clean
-  clean r@(Result _) = (r,True)
-  clean (Count p r) = let
-    (r',c) = clean r
+  fin1 = fin2 . fst . clean mempty
+  clean _ r@(Result _) = (r,True)
+  clean p0 (Count p r) = let
+    p' = mappend p0 p
+    (r',c) = clean p' r
     in (Count p r', c)
-  clean (Yield o r) = let
-    (r',c) = clean r
+  clean p (Yield o r) = let
+    (r',c) = clean p r
     in (Yield o r', c)
-  clean (a :+++ b) = case (clean a, clean b) of
+  clean p (a :+++ b) = case (clean p a, clean p b) of
     (a'@(_,True),_) -> a'
     (_,b'@(_,True)) -> b'
     ((a',False),(b',False)) -> (prune1 (a' :+++ b'), False)
-  clean a = (a,False)
+  clean p (GetCount n) = clean p (n p)
+  clean _ a = (a,False)
   fin2 a = do
     let (o,a1) = outputs a
     w o
