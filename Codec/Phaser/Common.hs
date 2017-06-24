@@ -207,7 +207,7 @@ countChar = count (Position 0 1)
 -- | Move the position counter to the next line
 countLine :: Phase Position i o ()
 {-# INLINE countLine #-}
-countLine = count (Position 1 0)
+countLine = count (Position 1 1)
 
 -- | Count the lines and characters from the input before yielding them again.
 -- If the phase pipeline does not include this or similar: parsing errors will

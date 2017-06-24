@@ -6,7 +6,7 @@ Maintainer: quick.dudley@gmail.com
 
 Core functions and types.
 -}
-{-# LANGUAGE RankNTypes, MultiParamTypeClasses, FunctionalDependencies #-}
+{-# LANGUAGE RankNTypes, MultiParamTypeClasses, FunctionalDependencies, ScopedTypeVariables #-}
 module Codec.Phaser.Core (
   Automaton,
   Phase,
@@ -14,6 +14,7 @@ module Codec.Phaser.Core (
   put,
   put1,
   count,
+  getCount,
   yield,
   eof,
   neof,
@@ -51,7 +52,8 @@ data Automaton p i o a =
   Failed ([String] -> [String]) |
   Automaton p i o a :+++ Automaton p i o a |
   Yield o (Automaton p i o a) |
-  Count p (Automaton p i o a)
+  Count p (Automaton p i o a) |
+  GetCount (p -> Automaton p i o a)
 
 -- | A type for building 'Automaton' values. 'Monad' and 'Applicative' instances
 -- are defined for this type rather than for 'Automaton' in order to avoid
@@ -108,6 +110,7 @@ instance Functor (Automaton p i o) where
     go (a :+++ b) = go a :+++ go b
     go (Yield o r) = Yield o (go r)
     go (Count p r) = Count p (go r)
+    go (GetCount n) = GetCount (fmap go n)
 
 instance PhaserType Phase where
   toAutomaton (Phase c) = c id Result
@@ -118,6 +121,7 @@ instance PhaserType Phase where
     continue (l :+++ r) = prune1 (continue l :+++ continue r)
     continue (Count p r) = prune1 (Count p (continue r))
     continue (Yield o r) = prune1 (Yield o (continue r))
+    continue (GetCount n) = GetCount (fmap continue n)
     in continue a
    )
   toPhase = id
@@ -136,9 +140,9 @@ instance PhaserType Automaton where
 (>>#) :: (Monoid p, PhaserType s, PhaserType d) => s p b c x -> d p c t a -> Automaton p b t a
 a >># b = toAutomaton a !!! toAutomaton b where
     s@(Yield _ _) !!! Yield o r = prune1 (Yield o (s !!! r))
-    Yield o r !!! d = case beforeStep d of
+    Yield o r !!! d = case beforeStep' d of
       Left e -> e
-      Right d' -> let s = step d' o in s `seq` (r !!! s)
+      Right d' -> let s = step' d' o in s `seq` (r !!! s)
     Failed e !!! _ = Failed e
     _ !!! Failed e = Failed e
     Result _ !!! d = starve d
@@ -147,6 +151,7 @@ a >># b = toAutomaton a !!! toAutomaton b where
     s !!! Count p r = prune1 (Count p (s !!! r))
     (a :+++ b) !!! d = prune1 ((a !!! d) :+++ (b !!! d))
     Ready n e !!! d = Ready (\t -> n t !!! d) e
+    GetCount n !!! d = GetCount (\p -> n p !!! d)
 
 source_a :: Automaton p i c a -> (c -> t) -> Automaton p i t a
 {-# INLINE[1] source_a #-}
@@ -157,6 +162,7 @@ source_a a f = go a where
   go (a :+++ b) = go a :+++ go b
   go (Yield o r) = Yield (f o) (go r)
   go (Count p r) = Count p (go r)
+  go (GetCount n) = GetCount (fmap go n)
 
 {-# INLINE[1] source_p #-}
 source_p p f = fromAutomaton $ source_a (toAutomaton p) f
@@ -172,28 +178,39 @@ source_p p f = fromAutomaton $ source_a (toAutomaton p) f
 infixr 1 <?>
 e <?> Phase s = Phase (\e1 -> s ((e :) . e1))
 
-
--- | Change the counter type of a Phaser object.
+-- | Change the counter type of a Phaser object. May cause 'getCount' to
+-- behave differently from expected.
 infixr 1 >#>
-(>#>) :: (PhaserType s, Monoid p0, Monoid p) =>
+(>#>) :: forall s p0 p i o a . (PhaserType s, Monoid p0, Monoid p) =>
   (p0 -> p) -> s p0 i o a -> s p i o a
 {-# INLINABLE [1] (>#>) #-}
-f >#> p = fromAutomaton $ go $ toAutomaton p where
-  go (Result a) = Result a
-  go (Ready n e) = Ready (fmap go n) e
-  go (Failed e) = Failed e
-  go (a :+++ b) = go a :+++ go b
-  go (Yield t r) = Yield t (go r)
-  go (Count p r) = Count (f p) (go r)
+f >#> p = fromAutomaton $ go mempty $ toAutomaton p where
+  go :: (PhaserType s, Monoid p0, Monoid p) => p0 -> Automaton p0 i o a -> Automaton p i o a
+  go _ (Result a) = Result a
+  go p (Ready n e) = Ready (fmap (go p) n) e
+  go _ (Failed e) = Failed e
+  go p (a :+++ b) = go p a :+++ go p b
+  go p (Yield t r) = Yield t (go p r)
+  go p0 (Count p r) = let
+    p' = mappend p0 p
+    in p' `seq` Count (f p) (go p' r)
+  go p (GetCount n) = go p (n p)
 
 -- | Return one item of the input.
 get :: Phase p i o i
 get = Phase (flip Ready)
 
--- | Modify the counter
+-- | Increment the counter
 count :: p -> Phase p i o ()
 {-# INLINE [1] count #-}
 count f = Phase (\_ c -> Count f (c ()))
+
+-- | Retrieve the current counter. Counter values are shared between arguments
+-- to '>>#' except when at least one argument is produced by an incompatible function.
+-- All functions in this module are compatible unless noted in the corresponding
+-- documentation.
+getCount :: Phase p i o p
+getCount = Phase (const GetCount)
 
 -- | Yield one item for the incremental output
 yield :: o -> Phase p i o ()
@@ -214,15 +231,15 @@ neof = Phase (\e c -> case beforeStep (c ()) of
 -- | Insert one value back into the input. May be used for implementing lookahead
 put1 :: (Monoid p) => i -> Phase p i o ()
 {-# INLINE [1] put1 #-}
-put1 i = Phase (\_ c -> case beforeStep (c ()) of
-  Right n -> step n i
+put1 i = Phase (\_ c -> case beforeStep' (c ()) of
+  Right n -> step' n i
   Left e -> e
  )
 
 -- | Put a list of values back into the input.
 put :: (Monoid p) => [i] -> Phase p i o ()
 {-# INLINE [1] put #-}
-put i = Phase (\_ c -> run (c ()) i)
+put i = Phase (\_ c -> run' (c ()) i)
 
 {-# RULES
 "count/yield" forall p o . count p >> yield o = yield o >> count p
@@ -262,6 +279,7 @@ starve (Failed e) = Failed e
 starve (a :+++ b) = prune1 (starve a :+++ starve b)
 starve (Yield o r) = prune1 (Yield o (starve r))
 starve (Count p r) = prune1 (Count p (starve r))
+starve (GetCount n) = GetCount (fmap starve n)
 
 {-# RULES
 "starve/starve" forall a . starve (starve a) = starve a
@@ -278,31 +296,66 @@ fitYield = unsafeCoerce
 -- stripped if it cannot accept more input.
 beforeStep :: (Monoid p) => Automaton p i o a ->
   Either (Automaton p v o a) (Automaton p i o a)
-beforeStep = go where
-  go (Result _) = Left (Failed id)
-  go r@(Ready _ _) = Right r
-  go (Failed f) = Left $ Failed f 
-  go (a :+++ b) = case (go a, go b) of
+beforeStep = go mempty where
+  go _ (Result _) = Left (Failed id)
+  go _ r@(Ready _ _) = Right r
+  go _ (Failed f) = Left $ Failed f 
+  go p (a :+++ b) = case (go p a, go p b) of
     (Right a', Right b') -> Right $ prune1 $ a' :+++ b'
     (a'@(Right _), Left _) -> a'
     (Left _, b'@(Right _)) -> b'
     (Left a', Left b') -> Left $ prune1 $ a' :+++ b'
-  go (Yield o r) = case go r of
+  go p (Yield o r) = case go p r of
     r'@(Left _) -> r'
     Right r' -> Right (prune1 $ Yield o r')
+  go p0 (Count p1 r) = let p = mappend p0 p1 in case go p r of
+    Left r' -> Left $ prune1 $ Count p1 r'
+    Right r' -> Right $ prune1 $ Count p1 r'
+  go p (GetCount n) = go p (n p)
+
+-- Apoligies for code duplication
+beforeStep' :: (Monoid p) => Automaton p i o a ->
+  Either (Automaton p v o a) (Automaton p i o a)
+beforeStep' = fmap (\(s,a,b) -> if s then a else b) . go where
+  go (Result _) = Left (Failed id)
+  go r@(Ready _ _) = Right (True,r,r)
+  go (Failed e) = Left (Failed e)
+  go (a :+++ b) = case (go a, go b) of
+    (Left a', Left b') -> Left (prune1 (a' :+++ b'))
+    (Right (sa,a1,a2), Left b') -> Right (sa,a1,prune1 (a2 :+++ unsafeCoerce b'))
+    (Left a', Right (sb,b1,b2)) -> Right (sb,b1,prune1 (unsafeCoerce a' :+++ b2))
+    (Right (sa,a1,a2), Right (sb,b1,b2)) ->
+      Right (sa || sb, prune1 (a1 :+++ b1), prune1 (a2 :+++ b2))
+  go (Yield o r) = case go r of
+    Left r' -> Left (Yield o r')
+    Right (s,r1,r2) -> Right (s, Yield o r1, Yield o r2)
   go (Count p r) = case go r of
-    Left r' -> Left $ prune1 $ Count p r'
-    Right r' -> Right $ prune1 $ Count p r'
+    Left r' -> Left (Count p r')
+    Right (s,r1,r2) -> Right (s, Count p r1, Count p r2)
+  go a@(GetCount _) = Right (False,a,a)
 
 -- | Pass one input to an automaton
 step :: (Monoid p) => Automaton p i o a -> i -> Automaton p i o a
-step a' i = go a' where
+step a' i = go mempty a' where
+  go _ (Result _) = Failed id
+  go _ (Ready n _) = n i
+  go _ (Failed e) = Failed e
+  go p (a :+++ b) = prune1 (go p a :+++ go p b)
+  go p (Yield o r) = prune1 (Yield o (go p r))
+  go p0 (Count p1 r) = let
+    p = mappend p0 p1
+    in p `seq` prune1 (Count p1 (go p r))
+  go p (GetCount n) = go p (n p)
+
+step' :: (Monoid p) => Automaton p i o a -> i -> Automaton p i o a
+step' a' i = go a' where
   go (Result _) = Failed id
   go (Ready n _) = n i
   go (Failed e) = Failed e
   go (a :+++ b) = prune1 (go a :+++ go b)
   go (Yield o r) = prune1 (Yield o (go r))
   go (Count p r) = prune1 (Count p (go r))
+  go (GetCount n) = GetCount (fmap go n)
 
 -- | Take either counters with errors or a list of possible results from an
 -- automaton.
@@ -323,6 +376,7 @@ extract p' a = case go p' a of
   go p (Count i r) = let
     p' = mappend p i
     in p' `seq` go p' r
+  go p (GetCount n) = go p (n p)
 
 -- | Create a 'ReadS' like value from a Phaser type. If the input
 -- type is 'Char', the result will be 'ReadS'
@@ -340,9 +394,16 @@ run = go where
     Left a' -> a'
     Right a' -> go (step a' i) r
 
+run' :: (Monoid p) => Automaton p i o a -> [i] -> Automaton p i o a
+run' = go where
+  go a [] = a
+  go a (i:r) = case beforeStep' a of
+    Left a' -> a'
+    Right a' -> go (step' a' i) r
+
 -- | Use a 'Phase' value similarly to a parser.
 parse_ :: (Monoid p, PhaserType s) => p -> s p i o a -> [i] -> Either [(p,[String])] [a]
-parse_ p a i = extract p $ run (toAutomaton a) i
+parse_ p a i = extract mempty $ run (Count p $ toAutomaton a) i
 
 -- | Use a 'Phase' as a parser, but consuming a single input instead of a list
 parse1_ :: (Monoid p, PhaserType s) => p -> s p i o a -> i -> Either [(p,[String])] [a]
@@ -356,7 +417,8 @@ options = ($ []) . go where
   go (Count p r) = (fmap . fmap) (Count p) $ go r
   go a = (a :)
 
--- | Separate unconditional counter modifiers from an automaton
+-- | Separate unconditional counter modifiers from an automaton. Will cause
+-- unexpected results when used with 'getCount'
 readCount :: (Monoid p) => Automaton p i o a -> (p, Automaton p i o a)
 readCount = go where
   go (Count p0 r) = let
@@ -415,4 +477,5 @@ stream p0 a1 r w = go (toAutomaton a1) where
     w o
     return $ case extract p0 a1 of
       Right (r:_) -> Right r
-      Left e -> Left e 
+      Left e -> Left e
+      _ -> Left [] -- I believe this case to be unreachable, but ghc unsure.
