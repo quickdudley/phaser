@@ -178,7 +178,7 @@ decimal = (pure id <|> (negate <$ char '-' <* munch isSpace)) <*>
 
 -- | Parse a positive number from decimal digits and "."
 positiveDecimal :: (Fractional a, Monoid p) => Phase p Char o a
-positiveDecimal = do
+positiveDecimal = fromRational <$> do
   w <- positiveIntegerDecimal
   (match '.' >> go True 0.1 w) <|> return w
  where
@@ -193,7 +193,7 @@ positiveDecimal = do
 
 -- | Parse a number from standard decimal format or from scientific notation.
 scientificNotation :: (Fractional a, Monoid p) => Phase p Char o a
-scientificNotation = flip id <$> positiveDecimal <*> (pure id <|> (
+scientificNotation = fmap fromRational $ flip id <$> decimal <*> (pure id <|> (
   (\o p n -> o n (10 ^ p)) <$> (iChar 'e' *>
     (pure (*) <|> ((*) <$ char '+') <|> ((/) <$ char '-'))) <*>
     positiveIntegerDecimal
