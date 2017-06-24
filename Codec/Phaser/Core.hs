@@ -149,6 +149,7 @@ a >># b = toAutomaton a !!! toAutomaton b where
     Count p r !!! d = prune1 (Count p (r !!! d))
     s !!! Yield o r = prune1 (Yield o (s !!! r))
     s !!! Count p r = prune1 (Count p (s !!! r))
+    s !!! GetCount n = GetCount (\p -> s !!! n p)
     (a :+++ b) !!! d = prune1 ((a !!! d) :+++ (b !!! d))
     Ready n e !!! d = Ready (\t -> n t !!! d) e
     GetCount n !!! d = GetCount (\p -> n p !!! d)
