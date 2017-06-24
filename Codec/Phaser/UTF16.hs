@@ -5,7 +5,6 @@ module Codec.Phaser.UTF16 (
   utf16_stream_le,
   utf16_stream_be,
   utf16_stream_unknown,
-  utf16_word16_stream,
   utf16_encode_stream_be_nobom,
   utf16_encode_stream_le_nobom,
   utf16_encode_stream_be,
