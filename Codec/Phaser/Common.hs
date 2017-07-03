@@ -39,6 +39,7 @@ module Codec.Phaser.Common (
   munch,
   munch1,
   parseFile,
+  parseHandle,
   latin1
  ) where
 
@@ -50,6 +51,7 @@ import Data.Ratio
 import Control.Monad
 import Control.Applicative
 import qualified Data.Map as M
+import System.IO (Handle)
 
 import Codec.Phaser.Core
 import qualified Codec.Phaser.ByteString as BP
@@ -296,10 +298,17 @@ munch1 p = go1 where
 
 -- | Run a parser on input from a file. Input is provided as bytes, if
 -- characters are needed: a decoding phase such as
--- 'Codec.Phaser.UTF8.utf8_stream' or 'latin1' may be used
+-- 'Codec.Phaser.UTF8.utf8_stream' or 'latin1' may be used.
 parseFile :: (PhaserType s) => s Position Word8 o a -> FilePath ->
   IO (Either [(Position,[String])] [a])
 parseFile = BP.parseFile_ (Position 1 1)
+
+-- | Run a parser on input from a handle. Input is provided as bytes, if
+-- characters are needed: a decoding phase such as
+-- 'Codec.Phaser.UTF8.utf8_stream' may be used.
+parseHandle :: (PhaserType s) => s Position Word8 o a -> Handle ->
+  IO (Either [(Position,[String])] [a])
+parseHandle = BP.parseHandle_ (Position 1 1)
 
 -- | Decode bytes to characters using the Latin1 (ISO8859-1) encoding
 latin1 :: Monoid p => Phase p Word8 Char ()

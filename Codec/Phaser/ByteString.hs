@@ -9,7 +9,8 @@ Maintainer: quick.dudley@gmail.com
 module Codec.Phaser.ByteString (
   unpackBS,
   unpackLBS,
-  parseFile_
+  parseFile_,
+  parseHandle_
  ) where
 
 import qualified Data.ByteString as BS
@@ -18,6 +19,7 @@ import Data.Word
 
 import Control.Monad
 import Control.Applicative
+import System.IO (openFile,IOMode(ReadMode),Handle)
 
 import Codec.Phaser.Core
 
@@ -40,7 +42,11 @@ unpackLBS = (go >> unpackLBS) <|> return () where
 -- agnostic version.
 parseFile_ :: (Monoid p,PhaserType s) => p -> s p Word8 o a -> FilePath ->
   IO (Either [(p,[String])] [a])
-parseFile_ p c n = do
-  i <- BL.readFile n
-  return $ parse1_ p (unpackLBS >># c) i
+parseFile_ p c n = openFile n ReadMode >>= parseHandle_ p c
 
+-- | Run a parser from the contents of a 'Handle'. Input is provided as bytes.
+parseHandle_ :: (Monoid p,PhaserType s) => p -> s p Word8 o a -> Handle ->
+  IO (Either [(p,[String])] [a])
+parseHandle_ p c h = do
+  d <- BL.hGetContents h
+  return $ parse_ p (unpackBS >># c) (BL.toChunks d)
