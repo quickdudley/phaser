@@ -261,6 +261,11 @@ prune1 (f@(Failed _) :+++ Yield o r) = prune1 (Yield o (prune1 (f :+++ r)))
 prune1 (Yield o r :+++ f@(Failed _)) = prune1 (Yield o (prune1 (r :+++ f)))
 prune1 (a@(Ready _ _) :+++ (b@(Ready _ _) :+++ c)) = prune1 (prune1 (a :+++ b) :+++ c)
 prune1 ((a :+++ b@(Ready _ _)) :+++ c@(Ready _ _)) = prune1 (a :+++ prune1 (b :+++ c))
+prune1 (GetCount a :+++ GetCount b) = GetCount (\p -> prune1 (a p :+++ b p))
+prune1 ((a :+++ b@(GetCount _)) :+++ c@(GetCount _)) =
+  prune1 (a :+++ prune1 (b :+++ c))
+prune1 (a@(GetCount _) :+++ (b@(GetCount _) :+++ c)) =
+  prune1 (prune1 (a :+++ b) :+++ c)
 prune1 (Count p (Count q r)) = prune1 $ let t = mappend p q in t `seq` Count t r
 prune1 (Count p (Yield o r)) =
   prune1 (Yield o (prune1 (Count p r)))
