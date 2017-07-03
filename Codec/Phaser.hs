@@ -8,12 +8,17 @@ module Codec.Phaser (
   Phase,
   Automaton,
   Position(..),
+  Standardized(..),
   (>>#),
   (>#>),
   (<?>),
   ($#$),
   parse,
   parse_,
+  parseFile,
+  parseFile_,
+  parseHandle,
+  parseHandle_,
   get,
   count,
   yield,
@@ -39,4 +44,5 @@ module Codec.Phaser (
 
 import Codec.Phaser.Core
 import Codec.Phaser.Common
+import Codec.Phaser.ByteString
 
