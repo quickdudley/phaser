@@ -58,9 +58,10 @@ source-repository head
 
 Test-Suite test-phaser
   type: exitcode-stdio-1.0
+  default-language: Haskell2010
   Hs-Source-Dirs: .,test
   Main-is:        TestMain.hs
-  Build-Depends: base >=4.7 && <4.10,
+  Build-Depends: base >=4.7 && <4.11,
     text >=1.2 && <1.3,
     bytestring >=0.10 && <0.11,
     containers,
@@ -79,7 +80,7 @@ library
   other-extensions:    RankNTypes, MultiParamTypeClasses, FunctionalDependencies
   
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.7 && <4.10,
+  build-depends:       base >=4.7 && <4.11,
     text >=1.2 && <1.3,
     bytestring >=0.10 && <0.11,
     containers
