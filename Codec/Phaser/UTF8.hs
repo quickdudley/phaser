@@ -47,7 +47,7 @@ utf8_stream = (utf8_char >>= yield >> utf8_stream) <|> return ()
 
 -- | Consume any number of Characters and yield them as UTF-8 bytes
 utf8_encode :: (Monoid p) => Phase p Char Word8 ()
-utf8_encode = (fromEnum <$> get) >>= \c -> if c > 0 && c < 0x40
+utf8_encode = (fromEnum <$> get) >>= \c -> if c > 0 && c < 0x80
   then yield (fromIntegral c) >> nxt
   else go 0xC0 0x20 c []
  where
