@@ -19,6 +19,7 @@ module Codec.Phaser.Core (
   eof,
   neof,
   (<?>),
+  chainWith,
   (>>#),
   (>#>),
   starve,
@@ -135,17 +136,17 @@ instance PhaserType Automaton where
   fromPhase = toAutomaton
   ($#$) = source_a
 
--- | Take the incremental output of the first argument and use it as input
--- for the second argument. Discard the final output of the first argument.
-(>>#) :: (Monoid p, PhaserType s, PhaserType d) => s p b c x -> d p c t a -> Automaton p b t a
-a >># b = toAutomaton a !!! toAutomaton b where
+chainWith :: forall p s d x a z b t c . (Monoid p, PhaserType s, PhaserType d) => (x -> a -> z) ->
+  s p b c x -> d p c t a -> Automaton p b t z
+chainWith f a b = toAutomaton a !!! toAutomaton b where
+    (!!!) :: Automaton p b c x -> Automaton p c t a -> Automaton p b t z
     s@(Yield _ _) !!! Yield o r = prune1 (Yield o (s !!! r))
     Yield o r !!! d = case beforeStep' d of
-      Left e -> e
+      Left e ->  fmap undefined e
       Right d' -> let s = step' d' o in s `seq` (r !!! s)
     Failed e !!! _ = Failed e
     _ !!! Failed e = Failed e
-    Result _ !!! d = starve d
+    Result a !!! d = f a <$> starve d
     Count p r !!! d = prune1 (Count p (r !!! d))
     s !!! Yield o r = prune1 (Yield o (s !!! r))
     s !!! Count p r = prune1 (Count p (s !!! r))
@@ -153,6 +154,12 @@ a >># b = toAutomaton a !!! toAutomaton b where
     (a :+++ b) !!! d = prune1 ((a !!! d) :+++ (b !!! d))
     Ready n e !!! d = Ready (\t -> n t !!! d) e
     GetCount n !!! d = GetCount (\p -> n p !!! d)
+
+-- | Take the incremental output of the first argument and use it as input
+-- for the second argument. Discard the final output of the first argument.
+(>>#) :: (Monoid p, PhaserType s, PhaserType d) => s p b c x -> d p c t a -> Automaton p b t a
+(>>#) = chainWith (flip const)
+
 
 source_a :: Automaton p i c a -> (c -> t) -> Automaton p i t a
 {-# INLINE[1] source_a #-}

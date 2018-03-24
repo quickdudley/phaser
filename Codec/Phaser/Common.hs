@@ -21,6 +21,7 @@ module Codec.Phaser.Common (
   iChar,
   string,
   iString,
+  (<#>),
   integerDecimal,
   positiveIntegerDecimal,
   decimal,
@@ -138,6 +139,11 @@ string t = go t where
 -- | Match a string (case insensitive)
 iString :: (Monoid p) => String -> Phase p Char o String
 iString = mapM iChar
+
+infixl 5 <#>
+(<#>) :: (PhaserType d, PhaserType s, Monoid p) =>
+     s p b c (a -> z) -> d p c t a -> Automaton p b t z
+(<#>) = chainWith ($)
 
 -- | Parse a standard positive base 10 integer
 positiveIntegerDecimal :: (Num a, Monoid p) => Phase p Char o a
