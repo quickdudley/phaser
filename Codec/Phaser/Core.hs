@@ -426,7 +426,7 @@ parse_ p a i = extract mempty $ run (Count p $ toAutomaton a) i
 
 -- | Use a 'Phase' as a parser, but consuming a single input instead of a list
 parse1_ :: (Monoid p, PhaserType s) => p -> s p i o a -> i -> Either [(p,[String])] [a]
-parse1_ p a i = extract p $ step (toAutomaton a) i
+parse1_ p a i = extract mempty $ step (Count p $ toAutomaton a) i
 
 -- | Decompose an 'Automaton' into its component options.
 options :: Automaton p i o a -> [Automaton p i o a]
