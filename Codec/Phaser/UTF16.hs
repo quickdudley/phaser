@@ -8,7 +8,8 @@ module Codec.Phaser.UTF16 (
   utf16_encode_stream_be_nobom,
   utf16_encode_stream_le_nobom,
   utf16_encode_stream_be,
-  utf16_encode_stream_le
+  utf16_encode_stream_le,
+  utf16_encode_char
  ) where
 
 import Data.Bits
