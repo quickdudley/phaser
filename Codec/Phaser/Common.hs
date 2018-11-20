@@ -7,7 +7,7 @@ Maintainer: quick.dudley@gmail.com
 Common functions which do not need to be in 'Phaser.Core', mostly for using
 'Phase's and 'Automaton's as parsers.
 -}
-{-# LANGUAGE MultiParamTypeClasses,FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses,FlexibleContexts,CPP #-}
 module Codec.Phaser.Common (
   Position(..),
   PhaserType(..),
@@ -49,6 +49,9 @@ import Data.Char
 import Data.Int
 import Data.Word
 import Data.Ratio
+#if MIN_VERSION_base(4,9,0)
+import Data.Semigroup
+#endif
 import Control.Monad
 import Control.Applicative
 import qualified Data.Map as M
@@ -98,6 +101,11 @@ instance Read Position where
       c <- integer
       return (Position r c)
 
+#if MIN_VERSION_base(4,9,0)
+instance Semigroup Position where
+  (<>) = mappend
+#endif
+
 instance Monoid Position where
   mempty = Position 0 0
   mappend (Position r1 c1) (Position r2 c2)
@@ -112,6 +120,11 @@ instance Ord c => Monoid (Trie c a) where
   mempty = Trie [] M.empty
   mappend ~(Trie l1 m1) ~(Trie l2 m2) =
     Trie (l1 ++ l2) (M.unionWith mappend m1 m2)
+
+#if MIN_VERSION_base(4,9,0)
+instance Ord c => Semigroup (Trie c a) where
+  (<>) = mappend
+#endif
 
 -- | Consume one input, return it if it matches the predicate, otherwise fail.
 satisfy :: (Monoid p) => (i -> Bool) -> Phase p i o i
