@@ -59,13 +59,14 @@ source-repository head
 Test-Suite test-phaser
   type: exitcode-stdio-1.0
   default-language: Haskell2010
-  Hs-Source-Dirs: .,test
+  Hs-Source-Dirs: test
   Main-is:        TestMain.hs
   Build-Depends: base >=4.7 && <5,
     text >=1.2 && <1.3,
     bytestring >=0.10 && <0.11,
     containers,
-    QuickCheck
+    QuickCheck,
+    phaser
 
 library
   -- Modules exported by the library.

@@ -432,8 +432,8 @@ parse1_ p a i = extract mempty $ step (Count p $ toAutomaton a) i
 options :: Automaton p i o a -> [Automaton p i o a]
 options = ($ []) . go where
   go (a :+++ b) = go a . go b
-  go (Yield o r) = (fmap . fmap) (Yield o) $ go r
-  go (Count p r) = (fmap . fmap) (Count p) $ go r
+  go (Yield o r) = (map (Yield o) (go r []) ++)
+  go (Count p r) = (map (Count p) (go r []) ++)
   go a = (a :)
 
 -- | Separate unconditional counter modifiers from an automaton. The removal
