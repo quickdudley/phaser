@@ -1,4 +1,5 @@
 import Control.Applicative
+import Data.Char
 import Data.List
 import Test.QuickCheck
 
@@ -27,3 +28,15 @@ testOptions = let
   a = yield 'a' <|> yield 'b'
   opts = map (>># many get) $ options $ toAutomaton a
   in map (\p -> parse p "") opts == [Right ["a"], Right ["b"]]
+
+testGetCount :: [Int] -> Bool
+testGetCount s' = let
+  s = map ((+1) . abs) s'
+  i = foldr (\n r -> replicate (n-1) ' ' ++ ('x':r)) [] s
+  p = let
+    go _ [] = []
+    go n (a:r) = let b = a + n in b : go b r
+    in go 0 s
+  c = trackPosition >># (many (munch isSpace *> getCount <* char 'x'))
+  in parse c i ==
+     Right [map (Position 1) p]

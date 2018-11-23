@@ -79,7 +79,7 @@ instance Functor (Phase p i o) where
 instance Applicative (Phase p i o) where
   pure a = Phase (\e c -> c a)
   Phase f <*> Phase a = Phase (\e c -> f e (\f' -> a e (c . f')))
-  Phase a <* Phase b = Phase (\e c -> a e (\a' -> b e (\_ -> c a')))
+  Phase a <* Phase b = Phase (\e c -> a e (\a' -> b e (const (c a'))))
   (*>) = (>>)
 
 -- This is the first time I've ever created a separate '>>' method for a monad
@@ -429,11 +429,11 @@ parse1_ :: (Monoid p, PhaserType s) => p -> s p i o a -> i -> Either [(p,[String
 parse1_ p a i = extract mempty $ step (Count p $ toAutomaton a) i
 
 -- | Decompose an 'Automaton' into its component options.
-options :: Automaton p i o a -> [Automaton p i o a]
+options :: Monoid p => Automaton p i o a -> [Automaton p i o a]
 options = ($ []) . go where
   go (a :+++ b) = go a . go b
-  go (Yield o r) = (map (Yield o) (go r []) ++)
-  go (Count p r) = (map (Count p) (go r []) ++)
+  go (Yield o r) = (map (prune1 . Yield o) (go r []) ++)
+  go (Count p r) = (map (prune1 . Count p) (go r []) ++)
   go a = (a :)
 
 -- | Separate unconditional counter modifiers from an automaton. The removal
