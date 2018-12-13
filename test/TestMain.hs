@@ -1,15 +1,23 @@
 import Control.Applicative
 import Data.Char
 import Data.List
+import System.Exit
 import Test.QuickCheck
+import Test.QuickCheck.Test (isSuccess)
 
 import Codec.Phaser.Core
 import Codec.Phaser.Common
 
 main = do
-  quickCheck testScientific
-  quickCheck testOldChain
-  quickCheck testOptions
+  results <- sequenceA $ [
+    quickCheckResult testScientific,
+    quickCheckResult testOldChain,
+    quickCheckResult testOptions,
+    quickCheckResult testGetCount
+   ]
+  if all isSuccess results
+    then return ()
+    else exitFailure
 
 testScientific :: Double -> Bool
 testScientific v = case parse_ () scientificNotation (show v) of
@@ -29,14 +37,18 @@ testOptions = let
   opts = map (>># many get) $ options $ toAutomaton a
   in map (\p -> parse p "") opts == [Right ["a"], Right ["b"]]
 
-testGetCount :: [Int] -> Bool
+testGetCount :: [Bool] -> Bool
 testGetCount s' = let
-  s = map ((+1) . abs) s'
-  i = foldr (\n r -> replicate (n-1) ' ' ++ ('x':r)) [] s
-  p = let
-    go _ [] = []
-    go n (a:r) = let b = a + n in b : go b r
-    in go 0 s
-  c = trackPosition >># (many (munch isSpace *> getCount <* char 'x'))
+  i = map (\b -> if b
+    then 'x'
+    else ' '
+   ) s'
+  p = map snd $ filter fst $ zip s' [1 ..]
+  -- We accept slightly erroneous behaviour from `getCount` where `munch` is
+  -- involved.
+  c = trackPosition >># (
+    many (many (satisfy isSpace) *> getCount <* char 'x') <*
+    munch isSpace
+   )
   in parse c i ==
      Right [map (Position 1) p]

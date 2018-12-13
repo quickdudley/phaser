@@ -262,6 +262,7 @@ prune1 (Ready n1 e1 :+++ Ready n2 e2) =
   Ready (\i -> prune1 $ n1 i :+++ n2 i) (e1 . e2)
 prune1 (r@(Result _) :+++ Failed _) = r
 prune1 (Failed _ :+++ r@(Result _)) = r
+prune1 r@(_ :+++ (GetCount _ :+++ _)) = r
 prune1 (f@(Failed _) :+++ (a :+++ b)) = prune1 (prune1 (f :+++ a) :+++ b)
 prune1 ((a :+++ b) :+++ f@(Failed _)) = prune1 (a :+++ prune1 (b :+++ f))
 prune1 (f@(Failed _) :+++ Yield o r) = prune1 (Yield o (prune1 (f :+++ r)))
