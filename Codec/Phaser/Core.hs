@@ -140,6 +140,8 @@ chainWith :: forall p s d x a z b t c . (Monoid p, PhaserType s, PhaserType d) =
   s p b c x -> d p c t a -> Automaton p b t z
 chainWith f a b = toAutomaton a !!! toAutomaton b where
     (!!!) :: Automaton p b c x -> Automaton p c t a -> Automaton p b t z
+    s@(Yield _ _) !!! GetCount n = GetCount (\p -> s !!! n p)
+    s@(Yield _ _) !!! (a :+++ b) = prune1 ((s !!! a) :+++ (s !!! b))
     s@(Yield _ _) !!! Yield o r = prune1 (Yield o (s !!! r))
     Yield o r !!! d = case beforeStep' d of
       Left e ->  fmap undefined e
@@ -262,7 +264,7 @@ prune1 (Ready n1 e1 :+++ Ready n2 e2) =
   Ready (\i -> prune1 $ n1 i :+++ n2 i) (e1 . e2)
 prune1 (r@(Result _) :+++ Failed _) = r
 prune1 (Failed _ :+++ r@(Result _)) = r
-prune1 r@(_ :+++ (GetCount _ :+++ _)) = r
+prune1 r@(Failed _ :+++ (GetCount _ :+++ Failed _)) = r
 prune1 (f@(Failed _) :+++ (a :+++ b)) = prune1 (prune1 (f :+++ a) :+++ b)
 prune1 ((a :+++ b) :+++ f@(Failed _)) = prune1 (a :+++ prune1 (b :+++ f))
 prune1 (f@(Failed _) :+++ Yield o r) = prune1 (Yield o (prune1 (f :+++ r)))
