@@ -25,6 +25,7 @@ module Codec.Phaser.Core (
   starve,
   PhaserType(..),
   fitYield,
+  fitGet,
   beforeStep,
   step,
   extract,
@@ -114,26 +115,39 @@ instance Functor (Automaton p i o) where
     go (GetCount n) = GetCount (fmap go n)
 
 instance PhaserType Phase where
-  toAutomaton (Phase c) = c id Result
-  fromAutomaton a = Phase (\e' c -> let
-    continue (Result r) = c r
-    continue (Ready n e) = Ready (fmap continue n) (e' . e)
-    continue (Failed e) = Failed (e' . e)
-    continue (l :+++ r) = prune1 (continue l :+++ continue r)
-    continue (Count p r) = prune1 (Count p (continue r))
-    continue (Yield o r) = prune1 (Yield o (continue r))
-    continue (GetCount n) = GetCount (fmap continue n)
-    in continue a
-   )
+  toAutomaton = p2a
+  fromAutomaton = a2p
   toPhase = id
   fromPhase = id
   ($#$) = source_p
 
+{-# INLINE [1] p2a #-}
+p2a :: Monoid p => Phase p i o a -> Automaton p i o a
+p2a (Phase c) = c id Result
+
+{-# INLINABLE [1] a2p #-}
+a2p :: Monoid p => Automaton p i o a -> Phase p i o a
+a2p a = Phase (\e' c -> let
+  continue (Result r) = c r
+  continue (Ready n e) = Ready (fmap continue n) (e' . e)
+  continue (Failed e) = Failed (e' . e)
+  continue (l :+++ r) = prune1 (continue l :+++ continue r)
+  continue (Count p r) = prune1 (Count p (continue r))
+  continue (Yield o r) = prune1 (Yield o (continue r))
+  continue (GetCount n) = GetCount (fmap continue n)
+  in continue a
+ )
+
+{-# RULES
+"p2a/a2p" forall a . p2a (a2p a) = a
+"a2p/p2a" forall a . a2p (p2a a) = a
+ #-}
+
 instance PhaserType Automaton where
   toAutomaton = id
   fromAutomaton = id
-  toPhase = fromAutomaton
-  fromPhase = toAutomaton
+  toPhase = a2p
+  fromPhase = p2a
   ($#$) = source_a
 
 chainWith :: forall p s d x a z b t c . (Monoid p, PhaserType s, PhaserType d) => (x -> a -> z) ->
@@ -159,9 +173,9 @@ chainWith f a b = toAutomaton a !!! toAutomaton b where
 
 -- | Take the incremental output of the first argument and use it as input
 -- for the second argument. Discard the final output of the first argument.
+{-# INLINE[1] (>>#) #-}
 (>>#) :: (Monoid p, PhaserType s, PhaserType d) => s p b c x -> d p c t a -> Automaton p b t a
 (>>#) = chainWith (flip const)
-
 
 source_a :: Automaton p i c a -> (c -> t) -> Automaton p i t a
 {-# INLINE[1] source_a #-}
@@ -179,7 +193,7 @@ source_p p f = fromAutomaton $ source_a (toAutomaton p) f
 
 {-# RULES
 "$#$/$#$/1" forall a f1 f2 . source_a (source_a a f1) f2 = source_a a (f2 . f1)
-"$#$/$#$/1" forall a f1 f2 . source_p (source_p a f1) f2 = source_p a (f2 . f1)
+"$#$/$#$/2" forall a f1 f2 . source_p (source_p a f1) f2 = source_p a (f2 . f1)
 "toAutomaton/$#$" forall p f . toAutomaton (source_p p f) = source_a (toAutomaton p) f
  #-}
 
@@ -239,7 +253,8 @@ neof = Phase (\e c -> case beforeStep (c ()) of
   Left r -> r
  )
 
--- | Insert one value back into the input. May be used for implementing lookahead
+-- | Insert one value back into the input. May be used for implementing
+-- lookahead. Can have counter-intuitive interactions with 'getCount'.
 put1 :: (Monoid p) => i -> Phase p i o ()
 {-# INLINE [1] put1 #-}
 put1 i = Phase (\_ c -> case beforeStep' (c ()) of
@@ -247,14 +262,11 @@ put1 i = Phase (\_ c -> case beforeStep' (c ()) of
   Left e -> e
  )
 
--- | Put a list of values back into the input.
+-- | Put a list of values back into the input. Can have counter-intuitive
+-- interactions with 'getCount'
 put :: (Monoid p) => [i] -> Phase p i o ()
 {-# INLINE [1] put #-}
 put i = Phase (\_ c -> run' (c ()) i)
-
-{-# RULES
-"count/yield" forall p o . count p >> yield o = yield o >> count p
-  #-}
 
 {-# INLINABLE [1] prune1 #-}
 prune1 (Failed e1 :+++ Failed e2) = Failed (e1 . e2)
@@ -306,6 +318,11 @@ starve (GetCount n) = GetCount (fmap starve n)
 -- it to be used in a chain containing yield statements
 fitYield :: PhaserType s => s p i Void a -> s p i o a
 fitYield = unsafeCoerce
+
+-- | Take a 'Phase' or 'Automaton' which doesn't consume any input and allow
+-- it to be composed with input consuming objects
+fitGet :: PhaserType s => s p Void o a -> s p i o a
+fitGet = unsafeCoerce
 
 -- | Optional pre-processing of an automaton before passing it more input.
 -- Produces 'Right' with all "final outputs" and errors stripped if the
