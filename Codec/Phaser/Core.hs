@@ -43,6 +43,7 @@ import Control.Applicative
 import Control.Monad
 import Data.Void
 import Unsafe.Coerce
+import qualified Control.Monad.Fail as MF
 
 -- | Represents a nondeterministic computation in progress.
 -- There are 4 type parameters: a counter type (may be used for tracking line
@@ -90,6 +91,9 @@ instance Monad (Phase p i o) where
   fail s = Phase (\e _ -> Failed (e . (s:)))
   Phase a >>= f = Phase (\e c -> a e (\a' -> let Phase b = f a' in b e c))
   Phase a >> Phase b = Phase (\e c -> a e (const (b e c)))
+
+instance MF.MonadFail (Phase p i o) where
+  fail = fail
 
 instance (Monoid p) => Alternative (Phase p i o) where
   empty = Phase (\e _ -> Failed e)
