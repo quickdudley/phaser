@@ -13,6 +13,7 @@ module Codec.Phaser.Core (
   get,
   put,
   put1,
+  buffer,
   count,
   getCount,
   yield,
@@ -252,7 +253,7 @@ eof = Phase (\e c -> starve (c ()))
 
 -- | Fail unless more input is provided.
 neof :: (Monoid p) => Phase p i o ()
-neof = Phase (\e c -> case beforeStep (c ()) of
+neof = Phase (\e c -> case beforeStep' (c ()) of
   Right r -> r
   Left r -> r
  )
@@ -271,6 +272,47 @@ put1 i = Phase (\_ c -> case beforeStep' (c ()) of
 put :: (Monoid p) => [i] -> Phase p i o ()
 {-# INLINE [1] put #-}
 put i = Phase (\_ c -> run' (c ()) i)
+
+-- | Use the argument to control the input passed to the following 'Phase'
+-- actions.
+-- @
+--   buffer (return True)
+-- @
+-- is equivalent to
+-- @
+--   return ()
+-- @
+-- @
+--   buffer (return False)
+-- @
+-- is equivalent to
+-- @
+--   eof
+-- @
+-- @
+--   buffer (True <$ yield 'a')
+-- @
+-- is equivalent to
+-- @
+--   put1 'a'
+-- *
+-- etc.
+buffer :: (Monoid p, PhaserType s) => s () i i Bool -> Phase p i o ()
+buffer p' = let
+  p = toAutomaton p'
+  in Phase (\e c -> let
+    go (Result True) t = t
+    go (Result False) t = starve t
+    go (Ready p e') t = Ready (\i -> go (p i) t) (e . e')
+    go (Failed e') t = Failed (e . e')
+    go (a :+++ b) t = prune1 (go a t :+++ go b t)
+    go (Yield i r) t = case beforeStep' t of
+      Right n -> go r $ step' n i
+      Left e -> e
+    go (Count () r) t = go r t
+    go (GetCount n) t = go (n ()) t
+    in go p (c ())
+   )
 
 {-# INLINABLE [1] prune1 #-}
 prune1 (Failed e1 :+++ Failed e2) = Failed (e1 . e2)
