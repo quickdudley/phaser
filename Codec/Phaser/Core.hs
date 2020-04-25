@@ -6,7 +6,7 @@ Maintainer: quick.dudley@gmail.com
 
 Core functions and types.
 -}
-{-# LANGUAGE RankNTypes, MultiParamTypeClasses, FunctionalDependencies, ScopedTypeVariables #-}
+{-# LANGUAGE CPP, RankNTypes, MultiParamTypeClasses, FunctionalDependencies, ScopedTypeVariables #-}
 module Codec.Phaser.Core (
   Automaton,
   Phase,
@@ -44,7 +44,9 @@ import Control.Applicative
 import Control.Monad
 import Data.Void
 import Unsafe.Coerce
+#if MIN_VERSION_base(4,9,0)
 import qualified Control.Monad.Fail as MF
+#endif
 
 -- | Represents a nondeterministic computation in progress.
 -- There are 4 type parameters: a counter type (may be used for tracking line
@@ -89,12 +91,16 @@ instance Applicative (Phase p i o) where
 -- instance, but turns out in this case it's a significant optimization.
 instance Monad (Phase p i o) where
   return = pure
-  fail s = Phase (\e _ -> Failed (e . (s:)))
+#if !(MIN_VERSION_base(4,13,0))
+  fail = MF.fail
+#endif
   Phase a >>= f = Phase (\e c -> a e (\a' -> let Phase b = f a' in b e c))
   Phase a >> Phase b = Phase (\e c -> a e (const (b e c)))
 
+#if MIN_VERSION_base(4,9,0)
 instance MF.MonadFail (Phase p i o) where
-  fail = fail
+  fail s = Phase (\e _ -> Failed (e . (s:)))
+#endif
 
 instance (Monoid p) => Alternative (Phase p i o) where
   empty = Phase (\e _ -> Failed e)
