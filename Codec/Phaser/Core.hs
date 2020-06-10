@@ -92,7 +92,7 @@ instance Applicative (Phase p i o) where
 instance Monad (Phase p i o) where
   return = pure
 #if !(MIN_VERSION_base(4,13,0))
-  fail = MF.fail
+  fail s = Phase (\e _ -> Failed (e . (s:)))
 #endif
   Phase a >>= f = Phase (\e c -> a e (\a' -> let Phase b = f a' in b e c))
   Phase a >> Phase b = Phase (\e c -> a e (const (b e c)))
