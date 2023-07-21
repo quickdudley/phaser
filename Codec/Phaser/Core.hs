@@ -85,7 +85,7 @@ instance Applicative (Phase p i o) where
   pure a = Phase (\e c -> c a)
   Phase f <*> Phase a = Phase (\e c -> f e (\f' -> a e (c . f')))
   Phase a <* Phase b = Phase (\e c -> a e (\a' -> b e (const (c a'))))
-  (*>) = (>>)
+  Phase a *> Phase b = Phase (\e c -> a e (const (b e c)))
 
 -- This is the first time I've ever created a separate '>>' method for a monad
 -- instance, but turns out in this case it's a significant optimization.
@@ -95,7 +95,8 @@ instance Monad (Phase p i o) where
   fail s = Phase (\e _ -> Failed (e . (s:)))
 #endif
   Phase a >>= f = Phase (\e c -> a e (\a' -> let Phase b = f a' in b e c))
-  Phase a >> Phase b = Phase (\e c -> a e (const (b e c)))
+  (>>) = (*>)
+  
 
 #if MIN_VERSION_base(4,9,0)
 instance MF.MonadFail (Phase p i o) where
@@ -234,7 +235,7 @@ f >#> p = fromAutomaton $ go mempty $ toAutomaton p where
 
 -- | Return one item of the input.
 get :: Phase p i o i
-get = Phase (flip Ready)
+get = Phase (\x y -> Ready y x)
 
 -- | Increment the counter
 count :: p -> Phase p i o ()
@@ -246,7 +247,7 @@ count f = Phase (\_ c -> Count f (c ()))
 -- All functions in this module are compatible unless noted in the corresponding
 -- documentation.
 getCount :: Phase p i o p
-getCount = Phase (const GetCount)
+getCount = Phase (\_ -> GetCount)
 
 -- | Yield one item for the incremental output
 yield :: o -> Phase p i o ()

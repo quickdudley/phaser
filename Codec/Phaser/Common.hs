@@ -103,14 +103,20 @@ instance Read Position where
 
 #if MIN_VERSION_base(4,9,0)
 instance Semigroup Position where
-  (<>) = mappend
+  (Position r1 c1) <> (Position r2 c2)
+    | r2 == 0   = Position r1 (c1 + c2)
+    | otherwise = Position (r1 + r2) c2
 #endif
 
 instance Monoid Position where
   mempty = Position 0 0
+#if MIN_VERSION_base(4,9,0)
+  mappend = (<>)
+#else
   mappend (Position r1 c1) (Position r2 c2)
     | r2 == 0   = Position r1 (c1 + c2)
     | otherwise = Position (r1 + r2) c2
+#endif
 
 -- | Tries in this module can be used for creating more efficient parsers
 -- when several of the recognized strings begin with the same few characters
@@ -118,12 +124,17 @@ data Trie c a = Trie [a] (M.Map c (Trie c a))
 
 instance Ord c => Monoid (Trie c a) where
   mempty = Trie [] M.empty
+#if MIN_VERSION_base(4,9,0)
+  mappend = (<>)
+#else
   mappend ~(Trie l1 m1) ~(Trie l2 m2) =
     Trie (l1 ++ l2) (M.unionWith mappend m1 m2)
+#endif
 
 #if MIN_VERSION_base(4,9,0)
 instance Ord c => Semigroup (Trie c a) where
-  (<>) = mappend
+  ~(Trie l1 m1) <> ~(Trie l2 m2) =
+    Trie (l1 ++ l2) (M.unionWith (<>) m1 m2)
 #endif
 
 -- | Consume one input, return it if it matches the predicate, otherwise fail.
