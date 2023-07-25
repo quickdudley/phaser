@@ -23,7 +23,7 @@ description:      A combinator library for incremental multiple pass parsers.
   lexing and parsing)
 
 -- URL for the project homepage or repository.
-homepage:            https://github.com/quickdudley/phaser
+homepage:            https://gitlab.com/quickdudley/phaser
 
 -- The license under which the package is released.
 license:             BSD3
