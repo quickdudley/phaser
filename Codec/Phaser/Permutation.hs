@@ -13,6 +13,7 @@ data Permutable p c t a where
   Filled :: a -> Permutable p c t a
   (:<*>) :: Permutable p c t (a -> b) -> Permutable p c t a -> Permutable p c t b
   (:<|>) :: Permutable p c t a -> Permutable p c t a -> Permutable p c t a
+  Empty :: Permutable p c t a
 
 instance Functor (Permutable p c t) where
   fmap f (Term p) = Term (fmap f p)
@@ -25,7 +26,7 @@ instance Applicative (Permutable p c t) where
   (<*>) = (:<*>)
 
 instance (Monoid p) =>Alternative (Permutable p c t) where
-  empty = Term empty
+  empty = Empty
   (<|>) = (:<|>)
 
 -- | Create a 'Phase' which runs the constituent terms of the 'Permutable'
@@ -36,17 +37,19 @@ runPermutable sep = go0 where
   go0 p = resolve p <|> (fill1 p >>= go)
   go p = resolve p <|> (sep >> fill1 p >>= go)
   resolve :: Permutable p c t x -> Phase p c t x
-  resolve (Term p) = fromAutomaton $ starve $ toAutomaton p
   resolve (Filled a) = pure a
   resolve (l :<*> r) = resolve l <*> resolve r
   resolve (l :<|> r) = resolve l <|> resolve r
+  resolve _ = empty
   fill1 :: Permutable p c t x -> Phase p c t (Permutable p c t x)
   fill1 (Term p) = Filled <$> p
-  fill1 (Filled _) = empty
   fill1 (l :<*> r) = (flip simplify r <$> fill1 l) <|> (simplify l <$> fill1 r)
   fill1 (l :<|> r) = fill1 l <|> fill1 r
+  fill1 _ = empty
   simplify (Filled l) r = fmap l r
   simplify l  (Filled r) = fmap ($ r) l
+  simplify Empty r = Empty
+  simplify l Empty = Empty
   simplify l r = l :<*> r
 
 term :: Phase p c t a -> Permutable p c t a
