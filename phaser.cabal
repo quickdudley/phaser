@@ -82,7 +82,7 @@ library
   other-extensions:    RankNTypes, MultiParamTypeClasses, FunctionalDependencies
   
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.9,
+  build-depends:       base >=4.9 && <5,
     text >=1.2,
     bytestring >=0.10,
     containers
